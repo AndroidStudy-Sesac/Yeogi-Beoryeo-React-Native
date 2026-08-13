@@ -50,3 +50,7 @@ Spike 단계의 브랜치 운영, PR 규칙, Git Tag를 이용한 최종 결과 
 - React Native
 - TypeScript
 - Android / iOS
+
+## Spike 결과
+
+- [품목 검색 Android Spike](./spikes/item-search/README.md)
