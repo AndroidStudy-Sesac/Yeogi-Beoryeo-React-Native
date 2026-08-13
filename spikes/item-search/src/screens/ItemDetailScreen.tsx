@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -7,9 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../App';
 import { getBundledItemGuide } from '../catalog-data';
 import type { ItemGuide } from '../catalog';
+import type { FavoriteStore } from '../favorite-store';
 import { colors, spacing } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ItemDetail'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'ItemDetail'> &
+  Readonly<{ favoriteStore: FavoriteStore }>;
 
 function categoryLabel(item: ItemGuide): string {
   const categoryPath = item.categoryPaths[0];
@@ -37,7 +39,12 @@ function DetailSection({
   );
 }
 
-export function ItemDetailScreen({ navigation, route }: Props) {
+export function ItemDetailScreen({ favoriteStore, navigation, route }: Props) {
+  const favoriteState = useSyncExternalStore(
+    favoriteStore.subscribe,
+    favoriteStore.getSnapshot,
+    favoriteStore.getSnapshot,
+  );
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -56,19 +63,70 @@ export function ItemDetailScreen({ navigation, route }: Props) {
     item = undefined;
   }
 
+  const isFavorite = item
+    ? favoriteState.itemIds.includes(item.id)
+    : false;
+  const isFavoritePending = item
+    ? favoriteState.pendingItemIds.includes(item.id)
+    : false;
+  const isFavoriteDisabled =
+    item === undefined || favoriteState.status !== 'ready' || isFavoritePending;
+  const favoriteLabel =
+    favoriteState.status === 'loading'
+      ? '즐겨찾기 불러오는 중'
+      : favoriteState.status === 'error'
+        ? '즐겨찾기 사용 불가'
+        : isFavoritePending
+          ? '즐겨찾기 저장 중'
+          : isFavorite
+            ? '즐겨찾기 해제'
+            : '즐겨찾기 추가';
+  const favoriteAccessibilityState = {
+    disabled: isFavoriteDisabled,
+    ...(favoriteState.status === 'loading' ? { busy: true } : {}),
+    ...(favoriteState.status === 'ready' ? { selected: isFavorite } : {}),
+  };
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <View style={styles.topBar}>
         <Pressable
-          accessibilityLabel="품목 검색으로 돌아가기"
+          accessibilityLabel="이전 화면으로 돌아가기"
           accessibilityRole="button"
           onPress={() => navigation.goBack()}
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
         >
-          <Text style={styles.backIcon}>‹</Text>
+          <Text allowFontScaling={false} style={styles.backIcon}>‹</Text>
         </Pressable>
-        <Text style={styles.topBarTitle}>품목 상세</Text>
-        <View style={styles.topBarSpacer} />
+        <Text accessibilityRole="header" style={styles.topBarTitle}>
+          품목 상세
+        </Text>
+        {item ? (
+          <Pressable
+            accessibilityLabel={favoriteLabel}
+            accessibilityRole="button"
+            accessibilityState={favoriteAccessibilityState}
+            disabled={isFavoriteDisabled}
+            onPress={() => void favoriteStore.toggle(item.id)}
+            style={({ pressed }) => [
+              styles.favoriteButton,
+              isFavoriteDisabled && styles.favoriteButtonDisabled,
+              pressed && !isFavoriteDisabled && styles.pressed,
+            ]}
+          >
+            <Text
+              allowFontScaling={false}
+              style={[
+                styles.favoriteIcon,
+                isFavorite && styles.favoriteIconSelected,
+              ]}
+            >
+              {isFavorite ? '★' : '☆'}
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.favoriteButton} />
+        )}
       </View>
 
       {item ? (
@@ -79,7 +137,7 @@ export function ItemDetailScreen({ navigation, route }: Props) {
               importantForAccessibility="no-hide-descendants"
               style={styles.iconContainer}
             >
-              <Text style={styles.recycleSymbol}>♻</Text>
+              <Text allowFontScaling={false} style={styles.recycleSymbol}>♻</Text>
             </View>
             <View style={styles.headerText}>
               <Text accessibilityRole="header" style={styles.itemName}>
@@ -90,6 +148,31 @@ export function ItemDetailScreen({ navigation, route }: Props) {
               </View>
             </View>
           </View>
+
+          {favoriteState.status === 'error' ? (
+            <View accessibilityLiveRegion="assertive" style={styles.favoriteError}>
+              <Text style={styles.favoriteErrorText}>
+                즐겨찾기를 불러오지 못했어요.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void favoriteStore.retryLoad()}
+                style={({ pressed }) => [
+                  styles.favoriteRetryButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.favoriteRetryLabel}>다시 시도</Text>
+              </Pressable>
+            </View>
+          ) : favoriteState.error?.type === 'save' &&
+            favoriteState.error.itemIds.includes(item.id) ? (
+            <View accessibilityLiveRegion="assertive" style={styles.favoriteError}>
+              <Text style={styles.favoriteErrorText}>
+                즐겨찾기를 저장하지 못했어요. 다시 눌러주세요.
+              </Text>
+            </View>
+          ) : null}
 
           <DetailSection title="배출 방법" lines={item.dischargeMethods} />
           <DetailSection title="특징" lines={item.features} />
@@ -114,7 +197,7 @@ export function ItemDetailScreen({ navigation, route }: Props) {
             onPress={() => navigation.goBack()}
             style={({ pressed }) => [styles.returnButton, pressed && styles.pressed]}
           >
-            <Text style={styles.returnLabel}>검색으로 돌아가기</Text>
+            <Text style={styles.returnLabel}>이전 화면으로 돌아가기</Text>
           </Pressable>
         </View>
       )}
@@ -134,7 +217,15 @@ const styles = StyleSheet.create({
   backButton: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
   backIcon: { color: colors.onSurface, fontSize: 40, lineHeight: 44 },
   topBarTitle: { flex: 1, color: colors.onSurface, fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  topBarSpacer: { width: 56 },
+  favoriteButton: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteButtonDisabled: { opacity: 0.45 },
+  favoriteIcon: { color: colors.outline, fontSize: 30 },
+  favoriteIconSelected: { color: colors.favorite },
   content: { gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl },
   itemHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   iconContainer: {
@@ -150,6 +241,29 @@ const styles = StyleSheet.create({
   itemName: { color: colors.onSurface, fontSize: 28, fontWeight: '800' },
   categoryChip: { borderRadius: 12, backgroundColor: colors.secondaryContainer, paddingHorizontal: 12, paddingVertical: 6 },
   categoryLabel: { color: colors.onPrimaryContainer, fontSize: 14, fontWeight: '700' },
+  favoriteError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: 14,
+    backgroundColor: colors.errorContainer,
+    padding: spacing.md,
+  },
+  favoriteErrorText: {
+    flex: 1,
+    color: colors.error,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  favoriteRetryButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.md,
+  },
+  favoriteRetryLabel: { color: colors.onPrimary, fontSize: 15, fontWeight: '800' },
   section: {
     gap: spacing.sm,
     borderColor: colors.outlineVariant,
