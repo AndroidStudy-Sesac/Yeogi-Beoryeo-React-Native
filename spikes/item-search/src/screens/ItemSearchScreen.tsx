@@ -21,11 +21,12 @@ import { colors, spacing } from '../theme';
 import { ItemResultCard } from './ItemResultCard';
 
 type Props = Readonly<{
+  onOpenFavorites: () => void;
   state: ItemSearchUiState;
   viewModel: ItemSearchViewModel;
 }>;
 
-export function ItemSearchScreen({ state, viewModel }: Props) {
+export function ItemSearchScreen({ onOpenFavorites, state, viewModel }: Props) {
   const hasSearchState = state.status !== 'idle';
   const searchInputRef = useRef<TextInput>(null);
   const dismissSearchInput = useCallback(() => {
@@ -71,9 +72,22 @@ export function ItemSearchScreen({ state, viewModel }: Props) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.header}>
-          <Text accessibilityRole="header" style={styles.title}>
-            품목 검색
-          </Text>
+          <View style={styles.titleRow}>
+            <Text accessibilityRole="header" style={styles.title}>
+              품목 검색
+            </Text>
+            <Pressable
+              accessibilityLabel="즐겨찾기 목록 열기"
+              accessibilityRole="button"
+              onPress={onOpenFavorites}
+              style={({ pressed }) => [
+                styles.favoritesButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text allowFontScaling={false} style={styles.favoritesButtonLabel}>★</Text>
+            </Pressable>
+          </View>
           <Text style={styles.description}>버릴 품목의 배출 방법을 확인하세요.</Text>
         </View>
 
@@ -190,7 +204,27 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.xs },
-  title: { color: colors.onSurface, fontSize: 28, fontWeight: '800' },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  title: { flex: 1, color: colors.onSurface, fontSize: 28, fontWeight: '800' },
+  favoritesButton: {
+    width: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: colors.outlineVariant,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  favoritesButtonLabel: {
+    color: colors.favorite,
+    fontSize: 24,
+    fontWeight: '800',
+  },
   description: { color: colors.onSurfaceVariant, fontSize: 16, lineHeight: 24 },
   searchRow: {
     flexDirection: 'row',
