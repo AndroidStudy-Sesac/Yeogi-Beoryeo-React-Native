@@ -1,0 +1,874 @@
+[
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "강릉시"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "고성군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "동해시"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "삼척시"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "양구군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "양양군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "영월군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "원주시"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "인제군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "정선군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "춘천시"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "태백시"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "평창군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "홍천군"
+  },
+  {
+    "sidoName": "강원특별자치도",
+    "sigunguName": "횡성군"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "가평군"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "고양시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "과천시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "광명시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "광주시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "구리시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "군포시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "김포시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "남양주시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "동두천시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "부천시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "성남시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "수원시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "시흥시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "안성시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "안양시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "양주시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "양평군"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "여주시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "연천군"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "오산시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "용인시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "의왕시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "의정부시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "이천시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "파주시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "평택시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "포천시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "하남시"
+  },
+  {
+    "sidoName": "경기도",
+    "sigunguName": "화성시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "거제시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "거창군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "고성군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "김해시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "남해군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "밀양시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "사천시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "산청군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "양산시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "의령군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "진주시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "창녕군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "창원시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "통영시"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "하동군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "함양군"
+  },
+  {
+    "sidoName": "경상남도",
+    "sigunguName": "합천군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "경산시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "경주시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "고령군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "구미시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "김천시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "문경시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "봉화군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "상주시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "성주군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "안동시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "영덕군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "영양군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "영주시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "영천시"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "예천군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "울릉군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "울진군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "의성군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "청도군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "청송군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "칠곡군"
+  },
+  {
+    "sidoName": "경상북도",
+    "sigunguName": "포항시"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "군위군"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "남구"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "달서구"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "달성군"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "동구"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "북구"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "서구"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "수성구"
+  },
+  {
+    "sidoName": "대구광역시",
+    "sigunguName": "중구"
+  },
+  {
+    "sidoName": "대전광역시",
+    "sigunguName": "대덕구"
+  },
+  {
+    "sidoName": "대전광역시",
+    "sigunguName": "동구"
+  },
+  {
+    "sidoName": "대전광역시",
+    "sigunguName": "서구"
+  },
+  {
+    "sidoName": "대전광역시",
+    "sigunguName": "유성구"
+  },
+  {
+    "sidoName": "대전광역시",
+    "sigunguName": "중구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "강서구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "금정구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "기장군"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "남구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "동구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "동래구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "부산진구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "북구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "사상구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "사하구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "서구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "수영구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "연제구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "영도구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "중구"
+  },
+  {
+    "sidoName": "부산광역시",
+    "sigunguName": "해운대구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "강남구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "강북구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "강서구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "관악구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "광진구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "구로구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "금천구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "노원구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "동대문구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "동작구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "마포구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "서대문구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "서초구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "성동구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "성북구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "송파구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "양천구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "영등포구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "용산구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "은평구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "종로구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "중구"
+  },
+  {
+    "sidoName": "서울특별시",
+    "sigunguName": "중랑구"
+  },
+  {
+    "sidoName": "세종특별자치시",
+    "sigunguName": "없음"
+  },
+  {
+    "sidoName": "울산광역시",
+    "sigunguName": "남구"
+  },
+  {
+    "sidoName": "울산광역시",
+    "sigunguName": "동구"
+  },
+  {
+    "sidoName": "울산광역시",
+    "sigunguName": "북구"
+  },
+  {
+    "sidoName": "울산광역시",
+    "sigunguName": "울주군"
+  },
+  {
+    "sidoName": "울산광역시",
+    "sigunguName": "중구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "강화군"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "검단구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "계양구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "남동구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "미추홀구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "부평구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "서해구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "연수구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "영종구"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "옹진군"
+  },
+  {
+    "sidoName": "인천광역시",
+    "sigunguName": "제물포구"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "강진군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "고흥군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "곡성군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "광산구"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "광양시"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "구례군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "나주시"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "남구"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "담양군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "동구"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "목포시"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "무안군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "보성군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "북구"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "서구"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "순천시"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "신안군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "여수시"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "영광군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "영암군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "완도군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "장성군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "장흥군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "진도군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "함평군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "해남군"
+  },
+  {
+    "sidoName": "전남광주통합특별시",
+    "sigunguName": "화순군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "고창군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "군산시"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "무주군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "부안군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "순창군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "완주군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "익산시"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "임실군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "장수군"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "전주시"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "정읍시"
+  },
+  {
+    "sidoName": "전북특별자치도",
+    "sigunguName": "진안군"
+  },
+  {
+    "sidoName": "제주특별자치도",
+    "sigunguName": "서귀포시"
+  },
+  {
+    "sidoName": "제주특별자치도",
+    "sigunguName": "제주시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "계룡시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "금산군"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "논산시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "당진시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "보령시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "부여군"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "서산시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "서천군"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "아산시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "천안시"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "청양군"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "태안군"
+  },
+  {
+    "sidoName": "충청남도",
+    "sigunguName": "홍성군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "괴산군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "단양군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "보은군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "영동군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "옥천군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "음성군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "제천시"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "증평군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "진천군"
+  },
+  {
+    "sidoName": "충청북도",
+    "sigunguName": "충주시"
+  }
+]

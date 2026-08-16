@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "여기버려 RN",
+    "slug": "yeogi-beoryeo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.team.yeogibeoryeo.rn"
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
