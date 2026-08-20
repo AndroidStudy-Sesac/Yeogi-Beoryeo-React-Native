@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "yeogi-beoryeo",
+    "slug": "yeogi-beoryeo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "yeogibeoryeo",
+    "android": {
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.yeogibeoryeo"
+    }
+  }
+}
