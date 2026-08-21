@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import {
   Alert,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -83,6 +84,49 @@ const mapPermission = (
   return response.canAskAgain ? 'denied' : 'blocked';
 };
 
+const describePermissionDetails = (
+  response: Location.LocationPermissionResponse
+) => {
+  if (Platform.OS === 'ios') {
+    const scopeLabels: Record<
+      NonNullable<Location.LocationPermissionResponse['ios']>['scope'],
+      string
+    > = {
+      always: '항상 허용',
+      none: '권한 없음',
+      whenInUse: '앱 사용 중',
+    };
+    const accuracyLabels: Record<
+      NonNullable<Location.LocationPermissionResponse['ios']>['accuracy'],
+      string
+    > = {
+      full: '정확한 위치',
+      reduced: '대략적인 위치',
+    };
+
+    return response.ios
+      ? `iOS: ${scopeLabels[response.ios.scope]} / ${accuracyLabels[response.ios.accuracy]}`
+      : 'iOS 권한 세부정보 미확인';
+  }
+
+  if (Platform.OS === 'android') {
+    const accuracyLabels: Record<
+      NonNullable<Location.LocationPermissionResponse['android']>['accuracy'],
+      string
+    > = {
+      coarse: '대략적인 위치',
+      fine: '정확한 위치',
+      none: '권한 없음',
+    };
+
+    return response.android
+      ? `Android: ${accuracyLabels[response.android.accuracy]}`
+      : 'Android 권한 세부정보 미확인';
+  }
+
+  return `${Platform.OS}: 권한 세부정보 미확인`;
+};
+
 export default function App() {
   const mapRef = useRef<NaverMapViewRef>(null);
   const [cameraLabel, setCameraLabel] = useState('37.5666, 126.9784 / z15.0');
@@ -90,6 +134,7 @@ export default function App() {
     useState<LocationPermissionStatus>('unknown');
   const [lookupStatus, setLookupStatus] =
     useState<LocationLookupStatus>('idle');
+  const [permissionDetail, setPermissionDetail] = useState<string | null>(null);
   const [currentCoordinate, setCurrentCoordinate] =
     useState<CurrentCoordinate | null>(null);
 
@@ -117,6 +162,7 @@ export default function App() {
     try {
       setPermissionStatus('checking');
       setLookupStatus('locating');
+      setPermissionDetail(null);
 
       const servicesEnabled = await Location.hasServicesEnabledAsync();
 
@@ -130,6 +176,7 @@ export default function App() {
       const nextPermissionStatus = mapPermission(permission);
 
       setPermissionStatus(nextPermissionStatus);
+      setPermissionDetail(describePermissionDetails(permission));
 
       if (nextPermissionStatus === 'denied') {
         setLookupStatus('permission-denied');
@@ -214,6 +261,9 @@ export default function App() {
           <Text style={styles.statusText}>
             위치 조회: {lookupLabels[lookupStatus]}
           </Text>
+          {permissionDetail && (
+            <Text style={styles.statusText}>권한 세부: {permissionDetail}</Text>
+          )}
           {currentCoordinate && (
             <Text style={styles.statusText}>
               현재 위치: {currentCoordinate.latitude.toFixed(5)},{' '}
