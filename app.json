@@ -7,7 +7,7 @@
     "scheme": "yeogibeoryeo",
     "android": {
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.yeogibeoryeo"
+      "package": "com.team.yeogibeoryeo.spike"
     }
   }
 }
