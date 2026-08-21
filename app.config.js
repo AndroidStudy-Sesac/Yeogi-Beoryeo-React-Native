@@ -23,6 +23,13 @@ module.exports = {
         },
       ],
       [
+        'expo-location',
+        {
+          locationWhenInUsePermission:
+            '현재 위치를 기준으로 가까운 수거 장소를 찾기 위해 위치 권한이 필요합니다.',
+        },
+      ],
+      [
         'expo-build-properties',
         {
           android: {
