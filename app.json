@@ -8,6 +8,9 @@
     "android": {
       "predictiveBackGestureEnabled": false,
       "package": "com.team.yeogibeoryeo.spike"
+    },
+    "ios": {
+      "bundleIdentifier": "com.team.yeogibeoryeo.spike"
     }
   }
 }

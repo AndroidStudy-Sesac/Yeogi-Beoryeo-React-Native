@@ -12,6 +12,9 @@ module.exports = {
       predictiveBackGestureEnabled: false,
       package: 'com.team.yeogibeoryeo.spike',
     },
+    ios: {
+      bundleIdentifier: 'com.team.yeogibeoryeo.spike',
+    },
     plugins: [
       [
         '@mj-studio/react-native-naver-map',
