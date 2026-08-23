@@ -37,3 +37,7 @@ export async function searchBundledCatalog(
 export function getBundledItemGuide(itemId: string): ItemGuide | undefined {
   return getCatalog().items.find((item) => item.id === itemId);
 }
+
+export function getBundledItemGuides(): readonly ItemGuide[] {
+  return getCatalog().items;
+}

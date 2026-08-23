@@ -3,7 +3,7 @@
     "name": "여기버려 품목 검색 Spike",
     "slug": "yeogi-beoryeo-item-search-spike",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
