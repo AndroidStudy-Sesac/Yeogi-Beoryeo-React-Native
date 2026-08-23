@@ -17,16 +17,27 @@ import {
   ItemSearchViewModel,
   type ItemSearchUiState,
 } from '../item-search-view-model';
+import type { HomeQuickCategory } from '../item-home';
 import { colors, spacing } from '../theme';
+import type { UsefulGuideId } from '../useful-guides';
+import { ItemHomeContent } from './ItemHomeContent';
 import { ItemResultCard } from './ItemResultCard';
 
 type Props = Readonly<{
+  onOpenCategory: (category: HomeQuickCategory) => void;
   onOpenFavorites: () => void;
+  onOpenGuide: (guideId: UsefulGuideId) => void;
   state: ItemSearchUiState;
   viewModel: ItemSearchViewModel;
 }>;
 
-export function ItemSearchScreen({ onOpenFavorites, state, viewModel }: Props) {
+export function ItemSearchScreen({
+  onOpenCategory,
+  onOpenFavorites,
+  onOpenGuide,
+  state,
+  viewModel,
+}: Props) {
   const hasSearchState = state.status !== 'idle';
   const searchInputRef = useRef<TextInput>(null);
   const dismissSearchInput = useCallback(() => {
@@ -139,17 +150,10 @@ export function ItemSearchScreen({ onOpenFavorites, state, viewModel }: Props) {
         ) : null}
 
         {state.status === 'idle' ? (
-          <View style={styles.statusPanel}>
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              <Text style={styles.recycleSymbol}>♻</Text>
-            </View>
-            <Text accessibilityRole="header" style={styles.statusTitle}>
-              무엇을 버리시나요?
-            </Text>
-            <Text style={styles.statusDescription}>
-              품목명을 검색하면 배출 방법, 특징, 유의사항을 확인할 수 있어요.
-            </Text>
-          </View>
+          <ItemHomeContent
+            onOpenCategory={onOpenCategory}
+            onOpenGuide={onOpenGuide}
+          />
         ) : null}
 
         {state.status === 'loading' ? (
@@ -278,7 +282,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.xl,
   },
-  recycleSymbol: { color: colors.primary, fontSize: 56 },
   statusTitle: { color: colors.onSurface, fontSize: 22, fontWeight: '800', textAlign: 'center' },
   statusDescription: {
     maxWidth: 320,

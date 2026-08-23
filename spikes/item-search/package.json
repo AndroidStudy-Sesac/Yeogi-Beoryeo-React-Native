@@ -25,7 +25,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "check": "tsc --noEmit",
-    "test": "node --test src/catalog.test.ts src/search.test.ts src/item-search-view-model.test.ts src/favorite-store.test.ts"
+    "test": "node --test src/catalog.test.ts src/search.test.ts src/item-search-view-model.test.ts src/favorite-store.test.ts src/item-home.test.ts"
   },
   "private": true
 }
