@@ -80,7 +80,7 @@ export function ItemSearchScreen({
   const isSearchDisabled = state.query.trim().length === 0 || state.status === 'loading';
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.safeArea}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <View style={styles.titleRow}>

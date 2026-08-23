@@ -45,7 +45,7 @@ export function UsefulGuideScreen({ navigation, route }: Props) {
   }
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.safeArea}>
       <View style={styles.header}>
         <Pressable
           accessibilityLabel="뒤로 가기"

@@ -88,7 +88,7 @@ export function ItemDetailScreen({ favoriteStore, navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.safeArea}>
       <View style={styles.topBar}>
         <Pressable
           accessibilityLabel="이전 화면으로 돌아가기"

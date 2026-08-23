@@ -44,7 +44,7 @@ export function FavoritesScreen({ favoriteStore, navigation }: Props) {
   );
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.safeArea}>
       <View style={styles.topBar}>
         <Pressable
           accessibilityLabel="품목 검색으로 돌아가기"
