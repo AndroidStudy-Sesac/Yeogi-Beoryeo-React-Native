@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -10,27 +10,45 @@ import {
 
 import {
   getQuickCategoryGridMetrics,
-  homeQuickCategories,
+  orderHomeQuickCategories,
   type HomeQuickCategory,
 } from '../item-home';
 import { colors, spacing } from '../theme';
 import { usefulGuides, type UsefulGuideId } from '../useful-guides';
 
 type Props = Readonly<{
+  onLimitSelectedCategories: (maxSelectedCount: number) => Promise<unknown>;
   onOpenCategory: (category: HomeQuickCategory) => void;
+  onOpenCategorySettings: () => void;
   onOpenGuide: (guideId: UsefulGuideId) => void;
+  selectedCategoryIds: readonly string[];
 }>;
 
-export function ItemHomeContent({ onOpenCategory, onOpenGuide }: Props) {
+export function ItemHomeContent({
+  onLimitSelectedCategories,
+  onOpenCategory,
+  onOpenCategorySettings,
+  onOpenGuide,
+  selectedCategoryIds,
+}: Props) {
   const { height, width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const gridTop = useRef(0);
   const [isExpanded, setExpanded] = useState(false);
   const metrics = getQuickCategoryGridMetrics(width, height);
+  const orderedCategories = orderHomeQuickCategories(selectedCategoryIds);
   const categories = isExpanded
-    ? homeQuickCategories
-    : homeQuickCategories.slice(0, metrics.collapsedCategoryCount);
+    ? orderedCategories
+    : orderedCategories.slice(0, metrics.collapsedCategoryCount);
   const itemWidth = (width - spacing.md * 2) / metrics.columnCount;
+
+  useEffect(() => {
+    void onLimitSelectedCategories(metrics.collapsedCategoryCount);
+  }, [
+    metrics.collapsedCategoryCount,
+    onLimitSelectedCategories,
+    selectedCategoryIds,
+  ]);
 
   function collapseCategories() {
     setExpanded(false);
@@ -60,6 +78,14 @@ export function ItemHomeContent({ onOpenCategory, onOpenGuide }: Props) {
           <Text accessibilityRole="header" style={styles.sectionTitle}>빠른 카테고리</Text>
           <Text style={styles.sectionDescription}>대표 품목의 배출 방법을 바로 확인합니다.</Text>
         </View>
+        <Pressable
+          accessibilityLabel="홈 표시 카테고리 편집"
+          accessibilityRole="button"
+          onPress={onOpenCategorySettings}
+          style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.editLabel}>편집 〉</Text>
+        </Pressable>
       </View>
 
       <View
@@ -140,6 +166,12 @@ const styles = StyleSheet.create({
   sectionTitleGroup: { flex: 1, gap: spacing.xs },
   sectionTitle: { color: colors.onSurface, fontSize: 20, fontWeight: '800' },
   sectionDescription: { color: colors.onSurfaceVariant, fontSize: 14, lineHeight: 20 },
+  editButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  editLabel: { color: colors.primary, fontSize: 15, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -spacing.md },
   categoryButton: {
     minHeight: 108,

@@ -4,8 +4,10 @@ import test from 'node:test';
 
 import { parseItemGuides } from './catalog.ts';
 import {
+  filterHomeQuickCategories,
   getQuickCategoryGridMetrics,
   homeQuickCategories,
+  orderHomeQuickCategories,
   resolveRepresentativeItemId,
 } from './item-home.ts';
 import { usefulGuides } from './useful-guides.ts';
@@ -68,5 +70,39 @@ test('useful guides expose unique IDs and secure external links', () => {
     usefulGuides.every((guide) =>
       guide.sites.every((site) => site.url.startsWith('https://')),
     ),
+  );
+});
+
+test('home category search ignores whitespace and returns no duplicates', () => {
+  const electronics = homeQuickCategories.find(
+    (category) => category.id === 'electronics',
+  );
+  assert.ok(electronics);
+
+  assert.deepEqual(
+    filterHomeQuickCategories('전기 전자 제품', [electronics, electronics]).map(
+      (category) => category.id,
+    ),
+    ['electronics'],
+  );
+  assert.deepEqual(filterHomeQuickCategories('없는 분류'), []);
+});
+
+test('selected home categories lead in saved order without duplicates', () => {
+  const ordered = orderHomeQuickCategories([
+    'electronics',
+    'battery',
+    'electronics',
+    'missing',
+  ]);
+
+  assert.deepEqual(
+    ordered.slice(0, 2).map((category) => category.id),
+    ['electronics', 'battery'],
+  );
+  assert.equal(ordered.length, homeQuickCategories.length);
+  assert.equal(
+    new Set(ordered.map((category) => category.id)).size,
+    homeQuickCategories.length,
   );
 });

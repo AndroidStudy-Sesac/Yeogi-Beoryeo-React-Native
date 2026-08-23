@@ -24,7 +24,10 @@ import { ItemHomeContent } from './ItemHomeContent';
 import { ItemResultCard } from './ItemResultCard';
 
 type Props = Readonly<{
+  homeCategoryIds: readonly string[];
+  onLimitHomeCategories: (maxSelectedCount: number) => Promise<unknown>;
   onOpenCategory: (category: HomeQuickCategory) => void;
+  onOpenHomeCategorySettings: () => void;
   onOpenFavorites: () => void;
   onOpenGuide: (guideId: UsefulGuideId) => void;
   state: ItemSearchUiState;
@@ -32,7 +35,10 @@ type Props = Readonly<{
 }>;
 
 export function ItemSearchScreen({
+  homeCategoryIds,
+  onLimitHomeCategories,
   onOpenCategory,
+  onOpenHomeCategorySettings,
   onOpenFavorites,
   onOpenGuide,
   state,
@@ -151,8 +157,11 @@ export function ItemSearchScreen({
 
         {state.status === 'idle' ? (
           <ItemHomeContent
+            onLimitSelectedCategories={onLimitHomeCategories}
             onOpenCategory={onOpenCategory}
+            onOpenCategorySettings={onOpenHomeCategorySettings}
             onOpenGuide={onOpenGuide}
+            selectedCategoryIds={homeCategoryIds}
           />
         ) : null}
 

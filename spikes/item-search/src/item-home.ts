@@ -49,6 +49,42 @@ function normalize(value: string): string {
   return value.replace(/\s+/g, '').toLocaleLowerCase('ko-KR');
 }
 
+export function filterHomeQuickCategories(
+  query: string,
+  categories: readonly HomeQuickCategory[] = homeQuickCategories,
+): HomeQuickCategory[] {
+  const searchKey = normalize(query);
+  const seenIds = new Set<string>();
+
+  return categories.filter((category) => {
+    if (seenIds.has(category.id)) return false;
+    seenIds.add(category.id);
+    return (
+      searchKey.length === 0 ||
+      normalize(category.label).includes(searchKey) ||
+      normalize(category.matchText).includes(searchKey)
+    );
+  });
+}
+
+export function orderHomeQuickCategories(
+  selectedCategoryIds: readonly string[],
+): HomeQuickCategory[] {
+  const categoriesById = new Map(
+    homeQuickCategories.map((category) => [category.id, category]),
+  );
+  const selected = [...new Set(selectedCategoryIds)].flatMap((categoryId) => {
+    const category = categoriesById.get(categoryId);
+    return category === undefined ? [] : [category];
+  });
+  const selectedIds = new Set(selected.map((category) => category.id));
+
+  return [
+    ...selected,
+    ...homeQuickCategories.filter((category) => !selectedIds.has(category.id)),
+  ];
+}
+
 export function resolveRepresentativeItemId(
   quickCategory: HomeQuickCategory,
   items: readonly ItemGuide[],
