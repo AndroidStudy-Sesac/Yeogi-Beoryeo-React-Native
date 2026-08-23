@@ -49,8 +49,10 @@ jobs:
         run: |
           set -euo pipefail
           workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          project="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
           test -n "$workspace"
-          scheme="$(xcodebuild -workspace "$workspace" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.read).dig("workspace", "schemes").first')"
+          test -n "$project"
+          scheme="$(xcodebuild -project "$project" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.read).dig("project", "schemes").first')"
           test -n "$scheme"
           xcodebuild \
             -workspace "$workspace" \
