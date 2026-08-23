@@ -74,7 +74,7 @@ jobs:
           cp -R "$app" build/ipa/Payload/
           (cd build/ipa && zip -qry ../yeogi-beoryeo-ios-sideload.ipa Payload)
           test -s build/yeogi-beoryeo-ios-sideload.ipa
-          unzip -l build/yeogi-beoryeo-ios-sideload.ipa | grep -E 'Payload/[^/]+\.app/'
+          unzip -t build/yeogi-beoryeo-ios-sideload.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
