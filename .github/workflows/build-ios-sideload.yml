@@ -1,0 +1,85 @@
+name: Build iOS Sideload IPA
+
+on:
+  push:
+    branches:
+      - spike/34-ios-device-verification
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: spikes/item-search
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spikes/item-search/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks
+        run: |
+          npm test
+          npm run check
+          npx expo install --check
+
+      - name: Generate iOS project
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+        run: |
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+
+      - name: Build unsigned device app
+        run: |
+          set -euo pipefail
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          test -n "$workspace"
+          scheme="$(xcodebuild -workspace "$workspace" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.read).dig("workspace", "schemes").first')"
+          test -n "$scheme"
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          app="$(find build/ios-device/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -R "$app" build/ipa/Payload/
+          (cd build/ipa && zip -qry ../yeogi-beoryeo-ios-sideload.ipa Payload)
+          test -s build/yeogi-beoryeo-ios-sideload.ipa
+          unzip -l build/yeogi-beoryeo-ios-sideload.ipa | grep -E 'Payload/[^/]+\.app/'
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: yeogi-beoryeo-ios-sideload
+          path: spikes/item-search/build/yeogi-beoryeo-ios-sideload.ipa
+          if-no-files-found: error
+          retention-days: 7
