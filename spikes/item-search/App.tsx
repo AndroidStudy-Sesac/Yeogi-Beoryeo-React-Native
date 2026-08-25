@@ -10,9 +10,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getBundledItemGuides, searchBundledCatalog } from './src/catalog-data';
 import { FavoriteStore } from './src/favorite-store';
-import { resolveRepresentativeItemId } from './src/item-home';
+import { HomeCategoryStore } from './src/home-category-store';
+import {
+  homeQuickCategories,
+  resolveRepresentativeItemId,
+} from './src/item-home';
 import { ItemSearchViewModel } from './src/item-search-view-model';
 import { FavoritesScreen } from './src/screens/FavoritesScreen';
+import { HomeCategorySettingsScreen } from './src/screens/HomeCategorySettingsScreen';
 import { ItemDetailScreen } from './src/screens/ItemDetailScreen';
 import { ItemSearchScreen } from './src/screens/ItemSearchScreen';
 import { UsefulGuideScreen } from './src/screens/UsefulGuideScreen';
@@ -22,14 +27,22 @@ export type RootStackParamList = {
   ItemSearch: undefined;
   ItemDetail: { itemId: string };
   Favorites: undefined;
+  HomeCategorySettings: undefined;
   UsefulGuide: { guideId: UsefulGuideId };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+type ItemSearchRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'ItemSearch'
+> &
+  Readonly<{ homeCategoryStore: HomeCategoryStore }>;
+
 function ItemSearchRoute({
+  homeCategoryStore,
   navigation,
-}: NativeStackScreenProps<RootStackParamList, 'ItemSearch'>) {
+}: ItemSearchRouteProps) {
   const viewModel = useMemo(
     () => new ItemSearchViewModel(searchBundledCatalog),
     [],
@@ -38,6 +51,11 @@ function ItemSearchRoute({
     viewModel.subscribe,
     viewModel.getSnapshot,
     viewModel.getSnapshot,
+  );
+  const homeCategoryState = useSyncExternalStore(
+    homeCategoryStore.subscribe,
+    homeCategoryStore.getSnapshot,
+    homeCategoryStore.getSnapshot,
   );
   useEffect(
     () =>
@@ -53,6 +71,8 @@ function ItemSearchRoute({
 
   return (
     <ItemSearchScreen
+      homeCategoryIds={homeCategoryState.selectedIds}
+      onLimitHomeCategories={homeCategoryStore.limit}
       onOpenCategory={(category) => {
         const itemId = resolveRepresentativeItemId(
           category,
@@ -61,6 +81,9 @@ function ItemSearchRoute({
         if (itemId !== undefined) viewModel.openDetail(itemId);
       }}
       onOpenFavorites={() => navigation.navigate('Favorites')}
+      onOpenHomeCategorySettings={() =>
+        navigation.navigate('HomeCategorySettings')
+      }
       onOpenGuide={(guideId) => navigation.navigate('UsefulGuide', { guideId })}
       state={state}
       viewModel={viewModel}
@@ -70,16 +93,32 @@ function ItemSearchRoute({
 
 export default function App() {
   const favoriteStore = useMemo(() => new FavoriteStore(AsyncStorage), []);
+  const homeCategoryStore = useMemo(
+    () =>
+      new HomeCategoryStore(
+        AsyncStorage,
+        homeQuickCategories.map(({ id }) => id),
+      ),
+    [],
+  );
   useEffect(() => {
     void favoriteStore.initialize();
-  }, [favoriteStore]);
+    void homeCategoryStore.initialize();
+  }, [favoriteStore, homeCategoryStore]);
 
   return (
     <SafeAreaProvider>
       <NavigationContainer>
         <StatusBar style="dark" />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="ItemSearch" component={ItemSearchRoute} />
+          <Stack.Screen name="ItemSearch">
+            {(props) => (
+              <ItemSearchRoute
+                {...props}
+                homeCategoryStore={homeCategoryStore}
+              />
+            )}
+          </Stack.Screen>
           <Stack.Screen name="ItemDetail">
             {(props) => (
               <ItemDetailScreen {...props} favoriteStore={favoriteStore} />
@@ -88,6 +127,14 @@ export default function App() {
           <Stack.Screen name="Favorites">
             {(props) => (
               <FavoritesScreen {...props} favoriteStore={favoriteStore} />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="HomeCategorySettings">
+            {(props) => (
+              <HomeCategorySettingsScreen
+                {...props}
+                homeCategoryStore={homeCategoryStore}
+              />
             )}
           </Stack.Screen>
           <Stack.Screen name="UsefulGuide" component={UsefulGuideScreen} />
