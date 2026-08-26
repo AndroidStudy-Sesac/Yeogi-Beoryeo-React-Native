@@ -1,0 +1,105 @@
+name: Build iOS Sideload IPA
+
+on:
+  push:
+    branches:
+      - spike/ksubin
+      - spike/ksubin-ios-sideload-ipa
+  pull_request:
+    branches:
+      - spike/ksubin
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        env:
+          EXPO_NO_TELEMETRY: "1"
+        run: npx eslint .
+
+      - name: Run TypeScript
+        run: npx tsc --noEmit
+
+      - name: Validate iOS build configuration
+        env:
+          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID || vars.NAVER_MAP_CLIENT_ID }}
+          EXPO_PUBLIC_GETSPOT_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY || vars.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${NAVER_MAP_CLIENT_ID:-}" || (echo "NAVER_MAP_CLIENT_ID is required for the iOS map build." && exit 1)
+          test -n "${EXPO_PUBLIC_GETSPOT_SERVICE_KEY:-}" || (echo "EXPO_PUBLIC_GETSPOT_SERVICE_KEY is required for the GetSpot API build." && exit 1)
+
+      - name: Generate iOS project
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID || vars.NAVER_MAP_CLIENT_ID }}
+          EXPO_PUBLIC_GETSPOT_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY || vars.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
+        run: |
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+
+      - name: Build unsigned device app
+        env:
+          EXPO_NO_TELEMETRY: "1"
+          NAVER_MAP_CLIENT_ID: ${{ secrets.NAVER_MAP_CLIENT_ID || vars.NAVER_MAP_CLIENT_ID }}
+          EXPO_PUBLIC_GETSPOT_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY || vars.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          project="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
+          test -n "$workspace"
+          test -n "$project"
+          scheme="$(xcodebuild -project "$project" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.read).dig("project", "schemes").first')"
+          test -n "$scheme"
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          app="$(find build/ios-device/Build/Products/Release-iphoneos -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -R "$app" build/ipa/Payload/
+          (cd build/ipa && zip -qry ../yeogi-beoryeo-ios-sideload.ipa Payload)
+          test -s build/yeogi-beoryeo-ios-sideload.ipa
+          unzip -t build/yeogi-beoryeo-ios-sideload.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yeogi-beoryeo-ios-sideload
+          path: build/yeogi-beoryeo-ios-sideload.ipa
+          if-no-files-found: error
+          retention-days: 7
