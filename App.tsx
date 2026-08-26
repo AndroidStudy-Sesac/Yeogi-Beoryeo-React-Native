@@ -37,6 +37,8 @@ const GANGNAM_STATION = {
   zoom: 16,
 };
 
+const NEARBY_SEARCH_RADIUS_METER = 1000;
+
 type LocationPermissionStatus =
   | 'unknown'
   | 'checking'
@@ -66,6 +68,14 @@ type DistrictSearchStatus =
   | 'loading'
   | 'validation-error'
   | GetSpotSearchResult['status'];
+
+type NearbySearchStatus =
+  | 'idle'
+  | 'loading'
+  | 'location-unavailable'
+  | GetSpotSearchResult['status'];
+
+type ActiveSpotResultSource = 'district' | 'nearby';
 
 const permissionLabels: Record<LocationPermissionStatus, string> = {
   unknown: '권한 미확인',
@@ -98,6 +108,19 @@ const districtSearchLabels: Record<DistrictSearchStatus, string> = {
   'api-error': '공공데이터 API 오류',
   'parse-error': '응답 해석 실패',
   cancelled: '이전 검색 취소됨',
+};
+
+const nearbySearchLabels: Record<NearbySearchStatus, string> = {
+  idle: '현재 위치 주변 검색 대기',
+  loading: '현재 위치 주변 검색 중',
+  'location-unavailable': '현재 위치 없음',
+  success: '주변 검색 완료',
+  empty: '주변 검색 결과 없음',
+  'configuration-error': 'API 키 설정 필요',
+  'network-error': '네트워크 오류',
+  'api-error': '공공데이터 API 오류',
+  'parse-error': '응답 해석 실패',
+  cancelled: '이전 주변 검색 취소됨',
 };
 
 const spotTypeLabels: Record<CollectionSpot['type'], string> = {
@@ -189,11 +212,17 @@ export default function App() {
     useState<DistrictSearchStatus>('idle');
   const [districtSearchMessage, setDistrictSearchMessage] =
     useState<string | null>(null);
-  const [districtSearchResultCount, setDistrictSearchResultCount] = useState(0);
-  const [districtSearchResults, setDistrictSearchResults] = useState<
-    CollectionSpot[]
-  >([]);
-  const [isDistrictSearchPartial, setIsDistrictSearchPartial] = useState(false);
+  const [nearbySearchStatus, setNearbySearchStatus] =
+    useState<NearbySearchStatus>('idle');
+  const [nearbySearchMessage, setNearbySearchMessage] =
+    useState<string | null>(null);
+  const [spotSearchResultCount, setSpotSearchResultCount] = useState(0);
+  const [spotSearchResults, setSpotSearchResults] = useState<CollectionSpot[]>(
+    []
+  );
+  const [activeSpotResultSource, setActiveSpotResultSource] =
+    useState<ActiveSpotResultSource | null>(null);
+  const [isSpotSearchPartial, setIsSpotSearchPartial] = useState(false);
 
   const moveCamera = (target: typeof SEOUL_CITY_HALL) => {
     mapRef.current?.animateCameraTo({
@@ -226,6 +255,8 @@ export default function App() {
       if (!servicesEnabled) {
         setPermissionStatus('unavailable');
         setLookupStatus('location-service-disabled');
+        setNearbySearchStatus('location-unavailable');
+        setNearbySearchMessage('기기 위치 서비스가 꺼져 있어 주변 검색을 실행하지 않았습니다.');
         return;
       }
 
@@ -237,11 +268,15 @@ export default function App() {
 
       if (nextPermissionStatus === 'denied') {
         setLookupStatus('permission-denied');
+        setNearbySearchStatus('location-unavailable');
+        setNearbySearchMessage('위치 권한이 없어 주변 검색을 실행하지 않았습니다.');
         return;
       }
 
       if (nextPermissionStatus === 'blocked') {
         setLookupStatus('permission-blocked');
+        setNearbySearchStatus('location-unavailable');
+        setNearbySearchMessage('설정에서 위치 권한을 허용한 뒤 다시 시도해 주세요.');
         return;
       }
 
@@ -257,8 +292,11 @@ export default function App() {
       setCurrentCoordinate(nextCoordinate);
       setLookupStatus('success');
       moveToCoordinate(nextCoordinate);
+      await searchNearbySpots(nextCoordinate);
     } catch (error) {
       setLookupStatus('unknown-error');
+      setNearbySearchStatus('location-unavailable');
+      setNearbySearchMessage('현재 위치를 가져오지 못해 주변 검색을 실행하지 않았습니다.');
       Alert.alert(
         '현재 위치 조회 실패',
         error instanceof Error
@@ -278,9 +316,10 @@ export default function App() {
     if (!normalizedKeyword) {
       setDistrictSearchStatus('validation-error');
       setDistrictSearchMessage('예: 역삼동, 서교동, 종로1가');
-      setDistrictSearchResults([]);
-      setDistrictSearchResultCount(0);
-      setIsDistrictSearchPartial(false);
+      setSpotSearchResults([]);
+      setSpotSearchResultCount(0);
+      setActiveSpotResultSource(null);
+      setIsSpotSearchPartial(false);
       return;
     }
 
@@ -292,11 +331,12 @@ export default function App() {
     searchRequestIdRef.current = requestId;
     searchAbortControllerRef.current = abortController;
     setLastSearchedDistrict(normalizedKeyword);
+    setActiveSpotResultSource('district');
     setDistrictSearchStatus('loading');
     setDistrictSearchMessage(`${normalizedKeyword} 검색 중`);
-    setDistrictSearchResults([]);
-    setDistrictSearchResultCount(0);
-    setIsDistrictSearchPartial(false);
+    setSpotSearchResults([]);
+    setSpotSearchResultCount(0);
+    setIsSpotSearchPartial(false);
 
     const result = await getSpotClient.searchByAddress({
       address: normalizedKeyword,
@@ -311,9 +351,9 @@ export default function App() {
     setDistrictSearchStatus(result.status);
 
     if (result.ok) {
-      setDistrictSearchResults(result.spots);
-      setDistrictSearchResultCount(result.spots.length);
-      setIsDistrictSearchPartial(result.isPartial);
+      setSpotSearchResults(result.spots);
+      setSpotSearchResultCount(result.spots.length);
+      setIsSpotSearchPartial(result.isPartial);
       setDistrictSearchMessage(
         result.status === 'empty'
           ? `${normalizedKeyword} 검색 결과가 없습니다.`
@@ -330,6 +370,57 @@ export default function App() {
     setDistrictSearchMessage(result.message);
   };
 
+  const searchNearbySpots = async (coordinate: CurrentCoordinate) => {
+    searchAbortControllerRef.current?.abort();
+
+    const requestId = searchRequestIdRef.current + 1;
+    const abortController = new AbortController();
+
+    searchRequestIdRef.current = requestId;
+    searchAbortControllerRef.current = abortController;
+    setActiveSpotResultSource('nearby');
+    setNearbySearchStatus('loading');
+    setNearbySearchMessage(
+      `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 검색 중`
+    );
+    setSpotSearchResults([]);
+    setSpotSearchResultCount(0);
+    setIsSpotSearchPartial(false);
+
+    const result = await getSpotClient.searchByLocation({
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      radiusMeter: NEARBY_SEARCH_RADIUS_METER,
+      signal: abortController.signal,
+    });
+
+    if (requestId !== searchRequestIdRef.current) {
+      return;
+    }
+
+    searchAbortControllerRef.current = null;
+    setNearbySearchStatus(result.status);
+
+    if (result.ok) {
+      setSpotSearchResults(result.spots);
+      setSpotSearchResultCount(result.spots.length);
+      setIsSpotSearchPartial(result.isPartial);
+      setNearbySearchMessage(
+        result.status === 'empty'
+          ? `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 검색 결과가 없습니다.`
+          : `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 기준 ${result.spots.length}건`
+      );
+      return;
+    }
+
+    if (result.status === 'cancelled') {
+      setNearbySearchMessage(null);
+      return;
+    }
+
+    setNearbySearchMessage(result.message);
+  };
+
   const retryDistrictSearch = () => {
     if (lastSearchedDistrict) {
       searchDistrict(lastSearchedDistrict);
@@ -341,6 +432,14 @@ export default function App() {
     ['network-error', 'api-error', 'parse-error'].includes(
       districtSearchStatus
     );
+  const isCurrentLocationActionRunning =
+    lookupStatus === 'locating' || nearbySearchStatus === 'loading';
+  const resultSourceLabel =
+    activeSpotResultSource === 'district' && lastSearchedDistrict
+      ? `${lastSearchedDistrict} 검색 결과`
+      : activeSpotResultSource === 'nearby'
+        ? `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 검색 결과`
+        : null;
 
   return (
     <View style={styles.container}>
@@ -400,6 +499,12 @@ export default function App() {
                 : ''}
             </Text>
           )}
+          <Text style={styles.statusText}>
+            주변 검색: {nearbySearchLabels[nearbySearchStatus]}
+          </Text>
+          {nearbySearchMessage && (
+            <Text style={styles.statusText}>{nearbySearchMessage}</Text>
+          )}
 
           <View style={styles.searchSection}>
             <Text style={styles.searchLabel}>동/읍/면 수거 장소 검색</Text>
@@ -435,16 +540,17 @@ export default function App() {
               <Text style={styles.searchStatusText}>
                 검색 상태: {districtSearchLabels[districtSearchStatus]}
               </Text>
-              {districtSearchResultCount > 0 && (
+              {activeSpotResultSource === 'district' &&
+                spotSearchResultCount > 0 && (
                 <Text style={styles.searchCountText}>
-                  {districtSearchResultCount}건
+                  {spotSearchResultCount}건
                 </Text>
-              )}
+                )}
             </View>
             {districtSearchMessage && (
               <Text style={styles.searchMessage}>{districtSearchMessage}</Text>
             )}
-            {isDistrictSearchPartial && (
+            {isSpotSearchPartial && (
               <Text style={styles.searchMessage}>
                 일부 페이지 조회 실패로 확인된 결과만 표시 중
               </Text>
@@ -458,13 +564,18 @@ export default function App() {
                 <Text style={styles.retryButtonText}>다시 검색</Text>
               </Pressable>
             )}
-            {districtSearchResults.length > 0 && (
+            {spotSearchResults.length > 0 && (
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 style={styles.resultList}
               >
-                {districtSearchResults.slice(0, 8).map((spot) => (
-                  <View key={spot.id} style={styles.resultItem}>
+                {resultSourceLabel && (
+                  <Text style={styles.resultSourceText}>
+                    {resultSourceLabel}
+                  </Text>
+                )}
+                {spotSearchResults.slice(0, 8).map((spot) => (
+                  <View key={`${activeSpotResultSource}-${spot.id}`} style={styles.resultItem}>
                     <View style={styles.resultTitleRow}>
                       <Text numberOfLines={1} style={styles.resultName}>
                         {spot.name}
@@ -491,10 +602,16 @@ export default function App() {
         <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            style={styles.locationButton}
+            disabled={isCurrentLocationActionRunning}
+            style={[
+              styles.locationButton,
+              isCurrentLocationActionRunning && styles.disabledButton,
+            ]}
             onPress={requestCurrentLocation}
           >
-            <Text style={styles.locationButtonText}>현재 위치</Text>
+            <Text style={styles.locationButtonText}>
+              {isCurrentLocationActionRunning ? '위치 검색 중' : '현재 위치'}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -654,6 +771,12 @@ const styles = StyleSheet.create({
   resultList: {
     marginTop: 10,
     maxHeight: 220,
+  },
+  resultSourceText: {
+    color: '#4F635D',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingBottom: 6,
   },
   resultItem: {
     borderTopColor: '#D8E2DC',
