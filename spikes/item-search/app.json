@@ -10,7 +10,8 @@
       "bundleIdentifier": "com.team.yeogibeoryeo.itemsearchspike"
     },
     "android": {
-      "package": "com.team.yeogibeoryeo.itemsearchspike",
+      "package": "com.team.yeogibeoryeo.debug",
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

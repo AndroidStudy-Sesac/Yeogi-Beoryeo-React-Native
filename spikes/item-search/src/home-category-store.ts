@@ -45,7 +45,8 @@ type LimitOperation = Readonly<{
 type WriteOperation = ToggleOperation | LimitOperation;
 type WriteResult = HomeCategoryToggleResult | HomeCategoryLimitResult;
 
-const STORAGE_KEY = 'yeogi-beoryeo:home-category-settings:v1';
+export const HOME_CATEGORY_STORAGE_KEY =
+  'yeogi-beoryeo:home-category-settings:v1';
 const RAPID_INPUT_GUARD_MS = 500;
 
 const initialState: HomeCategoryStoreState = {
@@ -61,7 +62,7 @@ function normalizeLimit(maxSelectedCount: number): number {
     : 0;
 }
 
-function parseSelectedIds(
+export function parseSelectedIds(
   rawValue: string | null,
   knownIds: ReadonlySet<string>,
 ): string[] {
@@ -223,7 +224,7 @@ export class HomeCategoryStore {
     const load = (async () => {
       try {
         const selectedIds = parseSelectedIds(
-          await this.storage.getItem(STORAGE_KEY),
+          await this.storage.getItem(HOME_CATEGORY_STORAGE_KEY),
           this.knownIds,
         );
         this.failedOperations = [];
@@ -308,7 +309,10 @@ export class HomeCategoryStore {
       : [...this.state.selectedIds, categoryId];
 
     try {
-      await this.storage.setItem(STORAGE_KEY, JSON.stringify(nextSelectedIds));
+      await this.storage.setItem(
+        HOME_CATEGORY_STORAGE_KEY,
+        JSON.stringify(nextSelectedIds),
+      );
       this.updateState({
         ...this.state,
         selectedIds: nextSelectedIds,
@@ -353,7 +357,10 @@ export class HomeCategoryStore {
     });
 
     try {
-      await this.storage.setItem(STORAGE_KEY, JSON.stringify(nextSelectedIds));
+      await this.storage.setItem(
+        HOME_CATEGORY_STORAGE_KEY,
+        JSON.stringify(nextSelectedIds),
+      );
       if (operation.generation !== this.limitGeneration) {
         this.forceLimitWriteGeneration = this.limitGeneration;
         this.removePendingIds(affectedIds);
