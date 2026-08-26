@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.team.yeogibeoryeo.rn"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      "expo-status-bar"
     ]
   }
 }

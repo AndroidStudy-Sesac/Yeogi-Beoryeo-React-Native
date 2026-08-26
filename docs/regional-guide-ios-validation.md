@@ -5,7 +5,11 @@
 - 검증일: 2026-08-26
 - 로컬 환경: Windows
 - iOS 네이티브 도구: Xcode, iOS Simulator, CocoaPods 사용 불가
-- Expo SDK: 52
+- Node.js: 24.14.0
+- npm: 11.9.0
+- Expo SDK: 57.0.16 (`expo` 선언 범위 `~57.0.14`)
+- React Native: 0.86.2
+- React: 19.2.3
 
 ## 확인한 항목
 
@@ -35,7 +39,7 @@ Windows에서는 Apple 네이티브 도구를 실행할 수 없어 다음 항목
 
 ## macOS 후속 검증
 
-Node.js 18.18 이상과 Xcode가 준비된 macOS에서 다음 항목을 확인한다.
+Node.js 24.14.0과 Xcode가 준비된 macOS에서 다음 항목을 확인한다.
 
 1. `npm run ios` 또는 `npx expo run:ios --device`로 앱을 실행한다.
 2. `제주특별자치도 → 제주시 → 일도1동`을 선택한다.
