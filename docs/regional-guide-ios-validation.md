@@ -1,0 +1,51 @@
+# 지역 가이드 iOS 검증 기록
+
+## 검증 환경
+
+- 검증일: 2026-08-26
+- 로컬 환경: Windows
+- iOS 네이티브 도구: Xcode, iOS Simulator, CocoaPods 사용 불가
+- Expo SDK: 52
+
+## 확인한 항목
+
+- iOS bundle identifier를 `com.team.yeogibeoryeo.rn`으로 설정
+- Expo 공개 설정에서 iOS 플랫폼과 `expo-asset` 플러그인 인식 확인
+- iOS Hermes bundle 생성 성공
+- iOS JavaScript bundle에 공통 지역 repository와 JSON 모듈 포함 확인
+- Android Hermes bundle 생성 성공
+- 지역 데이터 로딩·필터링 로직에 플랫폼 분기가 없음을 확인
+- `제주특별자치도 → 제주시 → 일도1동` 선택 화면 테스트 통과
+- 시도 변경 시 시군구·읍면동 초기화 테스트 통과
+- 시군구 변경 시 읍면동 초기화 테스트 통과
+- TypeScript 검사와 전체 Jest 테스트 통과
+
+## 확인하지 못한 항목
+
+Windows에서는 Apple 네이티브 도구를 실행할 수 없어 다음 항목을 직접 검증하지 못했다.
+
+- iOS native build와 앱 실행
+- iOS Simulator 또는 실기기에서 지역 JSON 로딩
+- 긴 지역 목록 스크롤과 항목 터치
+- 빠른 항목 변경
+- 선택 상태 표시와 화면 잘림
+- Safe Area 및 시스템 UI 충돌
+- iOS runtime warning과 error
+- Android 실기기와 iOS 실기기의 화면 결과 직접 비교
+
+## macOS 후속 검증
+
+Node.js 18.18 이상과 Xcode가 준비된 macOS에서 다음 항목을 확인한다.
+
+1. `npm run ios` 또는 `npx expo run:ios --device`로 앱을 실행한다.
+2. `제주특별자치도 → 제주시 → 일도1동`을 선택한다.
+3. 시도를 변경해 기존 시군구와 읍면동 선택이 초기화되는지 확인한다.
+4. 시군구를 변경해 기존 읍면동 선택이 초기화되는지 확인한다.
+5. 제공 가능 지역만 노출되는지 확인한다.
+6. 긴 목록 스크롤, 빠른 선택, Safe Area와 화면 잘림을 확인한다.
+7. 동일 입력의 Android 결과와 비교한다.
+
+## 플랫폼 차이
+
+- 번들 생성과 공통 TypeScript 테스트 범위에서는 Android/iOS 결과 차이가 없다.
+- iOS native UI와 runtime 차이는 macOS 직접 검증 후 확정해야 한다.

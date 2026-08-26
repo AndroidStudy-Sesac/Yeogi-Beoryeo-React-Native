@@ -8,6 +8,9 @@
     "android": {
       "package": "com.team.yeogibeoryeo.rn"
     },
+    "ios": {
+      "bundleIdentifier": "com.team.yeogibeoryeo.rn"
+    },
     "plugins": [
       "expo-asset"
     ]
