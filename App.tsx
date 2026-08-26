@@ -1,12 +1,14 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import {
   Alert,
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import {
@@ -15,6 +17,11 @@ import {
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import { StatusBar } from 'expo-status-bar';
+import {
+  createGetSpotClient,
+  type CollectionSpot,
+  type GetSpotSearchResult,
+} from './src/features/collection-spots';
 
 const SEOUL_CITY_HALL = {
   label: '서울시청',
@@ -54,6 +61,12 @@ type CurrentCoordinate = {
   accuracy?: number | null;
 };
 
+type DistrictSearchStatus =
+  | 'idle'
+  | 'loading'
+  | 'validation-error'
+  | GetSpotSearchResult['status'];
+
 const permissionLabels: Record<LocationPermissionStatus, string> = {
   unknown: '권한 미확인',
   checking: '권한 확인 중',
@@ -72,6 +85,34 @@ const lookupLabels: Record<LocationLookupStatus, string> = {
   'location-service-disabled': '기기 위치 서비스가 꺼져 있음',
   unavailable: '현재 위치를 사용할 수 없음',
   'unknown-error': '위치 조회 실패',
+};
+
+const districtSearchLabels: Record<DistrictSearchStatus, string> = {
+  idle: '동/읍/면 검색 대기',
+  loading: '검색 중',
+  'validation-error': '동/읍/면 이름을 입력해 주세요',
+  success: '검색 완료',
+  empty: '검색 결과 없음',
+  'configuration-error': 'API 키 설정 필요',
+  'network-error': '네트워크 오류',
+  'api-error': '공공데이터 API 오류',
+  'parse-error': '응답 해석 실패',
+  cancelled: '이전 검색 취소됨',
+};
+
+const spotTypeLabels: Record<CollectionSpot['type'], string> = {
+  SMALL_E_WASTE_BIN: '소형 폐가전',
+  BATTERY_BIN: '폐건전지',
+  PHONE_DROP_OFF: '폐휴대폰',
+  RECYCLING_CENTER: '재활용 거점',
+  STANDARD_BAG_STORE: '종량제 봉투',
+  MEDICINE_DROP_BOX: '폐의약품',
+  FLUORESCENT_LAMP_BIN: '폐형광등',
+  CLOTHING_BIN: '의류',
+  ICE_PACK_BIN: '아이스팩',
+  WASTE_COOKING_OIL_BIN: '폐식용유',
+  HAZARDOUS_WASTE_BIN: '유해폐기물',
+  OTHER: '기타',
 };
 
 const mapPermission = (
@@ -129,6 +170,9 @@ const describePermissionDetails = (
 
 export default function App() {
   const mapRef = useRef<NaverMapViewRef>(null);
+  const getSpotClient = useMemo(() => createGetSpotClient(), []);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const searchRequestIdRef = useRef(0);
   const [cameraLabel, setCameraLabel] = useState('37.5666, 126.9784 / z15.0');
   const [permissionStatus, setPermissionStatus] =
     useState<LocationPermissionStatus>('unknown');
@@ -137,6 +181,19 @@ export default function App() {
   const [permissionDetail, setPermissionDetail] = useState<string | null>(null);
   const [currentCoordinate, setCurrentCoordinate] =
     useState<CurrentCoordinate | null>(null);
+  const [districtKeyword, setDistrictKeyword] = useState('');
+  const [lastSearchedDistrict, setLastSearchedDistrict] = useState<
+    string | null
+  >(null);
+  const [districtSearchStatus, setDistrictSearchStatus] =
+    useState<DistrictSearchStatus>('idle');
+  const [districtSearchMessage, setDistrictSearchMessage] =
+    useState<string | null>(null);
+  const [districtSearchResultCount, setDistrictSearchResultCount] = useState(0);
+  const [districtSearchResults, setDistrictSearchResults] = useState<
+    CollectionSpot[]
+  >([]);
+  const [isDistrictSearchPartial, setIsDistrictSearchPartial] = useState(false);
 
   const moveCamera = (target: typeof SEOUL_CITY_HALL) => {
     mapRef.current?.animateCameraTo({
@@ -215,6 +272,76 @@ export default function App() {
     Linking.openSettings();
   };
 
+  const searchDistrict = async (keyword = districtKeyword) => {
+    const normalizedKeyword = keyword.trim();
+
+    if (!normalizedKeyword) {
+      setDistrictSearchStatus('validation-error');
+      setDistrictSearchMessage('예: 역삼동, 서교동, 종로1가');
+      setDistrictSearchResults([]);
+      setDistrictSearchResultCount(0);
+      setIsDistrictSearchPartial(false);
+      return;
+    }
+
+    searchAbortControllerRef.current?.abort();
+
+    const requestId = searchRequestIdRef.current + 1;
+    const abortController = new AbortController();
+
+    searchRequestIdRef.current = requestId;
+    searchAbortControllerRef.current = abortController;
+    setLastSearchedDistrict(normalizedKeyword);
+    setDistrictSearchStatus('loading');
+    setDistrictSearchMessage(`${normalizedKeyword} 검색 중`);
+    setDistrictSearchResults([]);
+    setDistrictSearchResultCount(0);
+    setIsDistrictSearchPartial(false);
+
+    const result = await getSpotClient.searchByAddress({
+      address: normalizedKeyword,
+      signal: abortController.signal,
+    });
+
+    if (requestId !== searchRequestIdRef.current) {
+      return;
+    }
+
+    searchAbortControllerRef.current = null;
+    setDistrictSearchStatus(result.status);
+
+    if (result.ok) {
+      setDistrictSearchResults(result.spots);
+      setDistrictSearchResultCount(result.spots.length);
+      setIsDistrictSearchPartial(result.isPartial);
+      setDistrictSearchMessage(
+        result.status === 'empty'
+          ? `${normalizedKeyword} 검색 결과가 없습니다.`
+          : `${normalizedKeyword} 기준 ${result.spots.length}건`
+      );
+      return;
+    }
+
+    if (result.status === 'cancelled') {
+      setDistrictSearchMessage(null);
+      return;
+    }
+
+    setDistrictSearchMessage(result.message);
+  };
+
+  const retryDistrictSearch = () => {
+    if (lastSearchedDistrict) {
+      searchDistrict(lastSearchedDistrict);
+    }
+  };
+
+  const canRetryDistrictSearch =
+    lastSearchedDistrict !== null &&
+    ['network-error', 'api-error', 'parse-error'].includes(
+      districtSearchStatus
+    );
+
   return (
     <View style={styles.container}>
       <NaverMapView
@@ -273,6 +400,92 @@ export default function App() {
                 : ''}
             </Text>
           )}
+
+          <View style={styles.searchSection}>
+            <Text style={styles.searchLabel}>동/읍/면 수거 장소 검색</Text>
+            <View style={styles.searchRow}>
+              <TextInput
+                accessibilityLabel="동 읍 면 검색어"
+                autoCapitalize="none"
+                autoCorrect={false}
+                enterKeyHint="search"
+                placeholder="예: 역삼동, 서교동"
+                placeholderTextColor="#7A8F87"
+                returnKeyType="search"
+                style={styles.searchInput}
+                value={districtKeyword}
+                onChangeText={setDistrictKeyword}
+                onSubmitEditing={() => searchDistrict()}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={districtSearchStatus === 'loading'}
+                style={[
+                  styles.searchButton,
+                  districtSearchStatus === 'loading' && styles.disabledButton,
+                ]}
+                onPress={() => searchDistrict()}
+              >
+                <Text style={styles.searchButtonText}>
+                  {districtSearchStatus === 'loading' ? '검색 중' : '검색'}
+                </Text>
+              </Pressable>
+            </View>
+            <View style={styles.searchStatusRow}>
+              <Text style={styles.searchStatusText}>
+                검색 상태: {districtSearchLabels[districtSearchStatus]}
+              </Text>
+              {districtSearchResultCount > 0 && (
+                <Text style={styles.searchCountText}>
+                  {districtSearchResultCount}건
+                </Text>
+              )}
+            </View>
+            {districtSearchMessage && (
+              <Text style={styles.searchMessage}>{districtSearchMessage}</Text>
+            )}
+            {isDistrictSearchPartial && (
+              <Text style={styles.searchMessage}>
+                일부 페이지 조회 실패로 확인된 결과만 표시 중
+              </Text>
+            )}
+            {canRetryDistrictSearch && (
+              <Pressable
+                accessibilityRole="button"
+                style={styles.retryButton}
+                onPress={retryDistrictSearch}
+              >
+                <Text style={styles.retryButtonText}>다시 검색</Text>
+              </Pressable>
+            )}
+            {districtSearchResults.length > 0 && (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                style={styles.resultList}
+              >
+                {districtSearchResults.slice(0, 8).map((spot) => (
+                  <View key={spot.id} style={styles.resultItem}>
+                    <View style={styles.resultTitleRow}>
+                      <Text numberOfLines={1} style={styles.resultName}>
+                        {spot.name}
+                      </Text>
+                      <Text style={styles.resultType}>
+                        {spotTypeLabels[spot.type]}
+                      </Text>
+                    </View>
+                    <Text numberOfLines={2} style={styles.resultAddress}>
+                      {spot.address}
+                    </Text>
+                    {spot.detailLocation && (
+                      <Text numberOfLines={1} style={styles.resultDetail}>
+                        {spot.detailLocation}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -355,6 +568,128 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: '#274A42',
     fontSize: 13,
+  },
+  searchSection: {
+    borderTopColor: '#D8E2DC',
+    borderTopWidth: 1,
+    marginTop: 12,
+    paddingTop: 12,
+  },
+  searchLabel: {
+    color: '#12312A',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 44,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#BCCDC5',
+    borderRadius: 8,
+    borderWidth: 1,
+    color: '#12312A',
+    fontSize: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  searchButton: {
+    minHeight: 44,
+    minWidth: 72,
+    alignItems: 'center',
+    backgroundColor: '#0F766E',
+    borderRadius: 8,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  disabledButton: {
+    opacity: 0.55,
+  },
+  searchButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  searchStatusRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  searchStatusText: {
+    flex: 1,
+    color: '#274A42',
+    fontSize: 13,
+  },
+  searchCountText: {
+    color: '#0F766E',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  searchMessage: {
+    marginTop: 4,
+    color: '#4F635D',
+    fontSize: 12,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E7ECE9',
+    borderColor: '#9FB2AA',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    color: '#12312A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  resultList: {
+    marginTop: 10,
+    maxHeight: 220,
+  },
+  resultItem: {
+    borderTopColor: '#D8E2DC',
+    borderTopWidth: 1,
+    paddingVertical: 8,
+  },
+  resultTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  resultName: {
+    flex: 1,
+    color: '#12312A',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  resultType: {
+    backgroundColor: '#E7F4F1',
+    borderRadius: 8,
+    color: '#0F766E',
+    fontSize: 11,
+    fontWeight: '700',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  resultAddress: {
+    marginTop: 4,
+    color: '#274A42',
+    fontSize: 12,
+  },
+  resultDetail: {
+    marginTop: 2,
+    color: '#60736D',
+    fontSize: 12,
   },
   actions: {
     alignSelf: 'center',
