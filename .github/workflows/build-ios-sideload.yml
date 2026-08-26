@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - spike/ksubin
+      - spike/ksubin-ios-sideload-ipa
+  pull_request:
+    branches:
+      - spike/ksubin
   workflow_dispatch:
     inputs:
       naver_map_client_id:
