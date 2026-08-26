@@ -2,6 +2,10 @@ import rawItemGuides from './data/item_disposal_guides.json';
 import rawSynonyms from './data/synonyms.json';
 import { parseItemGuides, parseSynonyms, type ItemGuide } from './catalog';
 import { searchItemGuides } from './search';
+import {
+  measureSearchPerformance,
+  type SearchPerformanceMeasurement,
+} from './search-performance';
 
 type Catalog = Readonly<{
   items: readonly ItemGuide[];
@@ -9,16 +13,46 @@ type Catalog = Readonly<{
 }>;
 
 let cachedCatalog: Catalog | undefined;
+let catalogValidationMs: number | undefined;
 
 function getCatalog(): Catalog {
   if (cachedCatalog === undefined) {
+    const startedAt = globalThis.performance.now();
     cachedCatalog = {
       items: parseItemGuides(rawItemGuides),
       synonyms: parseSynonyms(rawSynonyms),
     };
+    catalogValidationMs = globalThis.performance.now() - startedAt;
   }
 
   return cachedCatalog;
+}
+
+export type BundledCatalogPerformance = Readonly<{
+  itemCount: number;
+  catalogValidationMs: number;
+  samplesPerQuery: number;
+  searches: readonly SearchPerformanceMeasurement[];
+}>;
+
+export function measureBundledCatalogPerformance(
+  queries: readonly string[],
+  sampleCount: number,
+): BundledCatalogPerformance {
+  const catalog = getCatalog();
+
+  return {
+    itemCount: catalog.items.length,
+    catalogValidationMs:
+      Math.round((catalogValidationMs ?? 0) * 1000) / 1000,
+    samplesPerQuery: sampleCount,
+    searches: measureSearchPerformance(
+      catalog.items,
+      catalog.synonyms,
+      queries,
+      sampleCount,
+    ),
+  };
 }
 
 export async function searchBundledCatalog(
