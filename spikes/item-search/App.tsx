@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import LegacyItemDataModule from './modules/legacy-item-data';
 import { getBundledItemGuides, searchBundledCatalog } from './src/catalog-data';
 import { FavoriteStore } from './src/favorite-store';
 import { HomeCategoryStore } from './src/home-category-store';
@@ -16,6 +17,7 @@ import {
   resolveRepresentativeItemId,
 } from './src/item-home';
 import { ItemSearchViewModel } from './src/item-search-view-model';
+import { migrateLegacyItemData } from './src/legacy-item-data-migration';
 import { FavoritesScreen } from './src/screens/FavoritesScreen';
 import { HomeCategorySettingsScreen } from './src/screens/HomeCategorySettingsScreen';
 import { ItemDetailScreen } from './src/screens/ItemDetailScreen';
@@ -102,8 +104,24 @@ export default function App() {
     [],
   );
   useEffect(() => {
-    void favoriteStore.initialize();
-    void homeCategoryStore.initialize();
+    let disposed = false;
+
+    void migrateLegacyItemData(
+      AsyncStorage,
+      LegacyItemDataModule,
+      getBundledItemGuides().map(({ id }) => id),
+      homeQuickCategories.map(({ id }) => id),
+    )
+      .catch(() => undefined)
+      .then(() => {
+        if (disposed) return;
+        void favoriteStore.initialize();
+        void homeCategoryStore.initialize();
+      });
+
+    return () => {
+      disposed = true;
+    };
   }, [favoriteStore, homeCategoryStore]);
 
   return (

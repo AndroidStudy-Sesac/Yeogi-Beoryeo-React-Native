@@ -16,12 +16,12 @@ export type FavoriteStoreState = Readonly<{
 
 export type FavoriteToggleResult = 'added' | 'removed' | 'ignored' | 'failed';
 
-type StoredFavorite = Readonly<{
+export type StoredFavorite = Readonly<{
   targetId: string;
   savedAtMillis: number;
 }>;
 
-const STORAGE_KEY = 'yeogi-beoryeo:item-favorites:v1';
+export const FAVORITE_STORAGE_KEY = 'yeogi-beoryeo:item-favorites:v1';
 const RAPID_INPUT_GUARD_MS = 500;
 
 const initialState: FavoriteStoreState = {
@@ -31,7 +31,7 @@ const initialState: FavoriteStoreState = {
   error: null,
 };
 
-function parseStoredFavorites(rawValue: string | null): StoredFavorite[] {
+export function parseStoredFavorites(rawValue: string | null): StoredFavorite[] {
   if (rawValue === null) return [];
 
   let value: unknown;
@@ -161,7 +161,9 @@ export class FavoriteStore {
     this.updateState({ ...this.state, status: 'loading', error: null });
     const load = (async () => {
       try {
-        const favorites = parseStoredFavorites(await this.storage.getItem(STORAGE_KEY));
+        const favorites = parseStoredFavorites(
+          await this.storage.getItem(FAVORITE_STORAGE_KEY),
+        );
         const itemIds = favorites.map((favorite) => favorite.targetId);
         this.savedAtMillisByItemId = new Map(
           favorites.map((favorite) => [favorite.targetId, favorite.savedAtMillis]),
@@ -214,7 +216,10 @@ export class FavoriteStore {
     }));
 
     try {
-      await this.storage.setItem(STORAGE_KEY, JSON.stringify(storedFavorites));
+      await this.storage.setItem(
+        FAVORITE_STORAGE_KEY,
+        JSON.stringify(storedFavorites),
+      );
       this.savedAtMillisByItemId = nextSavedAtMillisByItemId;
       this.updateState({
         ...this.state,
