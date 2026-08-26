@@ -37,7 +37,7 @@ jobs:
         env:
           EXPO_NO_TELEMETRY: "1"
         run: |
-          npm run lint
+          npx eslint .
           npx tsc --noEmit
           npx expo install --check
 
