@@ -33,13 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run checks
+      - name: Run ESLint
         env:
           EXPO_NO_TELEMETRY: "1"
-        run: |
-          npx eslint .
-          npx tsc --noEmit
-          npx expo install --check
+        run: npx eslint .
+
+      - name: Run TypeScript
+        run: npx tsc --noEmit
+
+      - name: Check Expo dependencies
+        env:
+          EXPO_NO_TELEMETRY: "1"
+        run: npx expo install --check
 
       - name: Generate iOS project
         env:
