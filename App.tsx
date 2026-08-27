@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import {
   Alert,
@@ -42,6 +42,7 @@ const NEARBY_SEARCH_RADIUS_METER = 1000;
 type LocationPermissionStatus =
   | 'unknown'
   | 'checking'
+  | 'requestable'
   | 'granted'
   | 'denied'
   | 'blocked'
@@ -51,6 +52,7 @@ type LocationLookupStatus =
   | 'idle'
   | 'locating'
   | 'success'
+  | 'permission-undetermined'
   | 'permission-denied'
   | 'permission-blocked'
   | 'location-service-disabled'
@@ -80,6 +82,7 @@ type ActiveSpotResultSource = 'district' | 'nearby';
 const permissionLabels: Record<LocationPermissionStatus, string> = {
   unknown: '권한 미확인',
   checking: '권한 확인 중',
+  requestable: '권한 요청 가능',
   granted: '권한 허용됨',
   denied: '권한 거부됨',
   blocked: '설정에서 권한 필요',
@@ -90,6 +93,7 @@ const lookupLabels: Record<LocationLookupStatus, string> = {
   idle: '현재 위치 미조회',
   locating: '현재 위치 조회 중',
   success: '현재 위치 조회 완료',
+  'permission-undetermined': '권한 요청 미완료',
   'permission-denied': '권한 요청 후 다시 시도 필요',
   'permission-blocked': '설정에서 위치 권한 허용 필요',
   'location-service-disabled': '기기 위치 서비스가 꺼져 있음',
@@ -145,12 +149,23 @@ const mapPermission = (
     return 'granted';
   }
 
+  if (response.status === Location.PermissionStatus.UNDETERMINED) {
+    return 'requestable';
+  }
+
   return response.canAskAgain ? 'denied' : 'blocked';
 };
 
 const describePermissionDetails = (
   response: Location.LocationPermissionResponse
 ) => {
+  const statusLabels: Record<Location.PermissionStatus, string> = {
+    [Location.PermissionStatus.DENIED]: '거부됨',
+    [Location.PermissionStatus.GRANTED]: '허용됨',
+    [Location.PermissionStatus.UNDETERMINED]: '미결정',
+  };
+  const requestLabel = response.canAskAgain ? '재요청 가능' : '설정 필요';
+
   if (Platform.OS === 'ios') {
     const scopeLabels: Record<
       NonNullable<Location.LocationPermissionResponse['ios']>['scope'],
@@ -168,9 +183,11 @@ const describePermissionDetails = (
       reduced: '대략적인 위치',
     };
 
-    return response.ios
+    const iosDetail = response.ios
       ? `iOS: ${scopeLabels[response.ios.scope]} / ${accuracyLabels[response.ios.accuracy]}`
       : 'iOS 권한 세부정보 미확인';
+
+    return `${iosDetail} / ${statusLabels[response.status]} / ${requestLabel}`;
   }
 
   if (Platform.OS === 'android') {
@@ -183,12 +200,14 @@ const describePermissionDetails = (
       none: '권한 없음',
     };
 
-    return response.android
+    const androidDetail = response.android
       ? `Android: ${accuracyLabels[response.android.accuracy]}`
       : 'Android 권한 세부정보 미확인';
+
+    return `${androidDetail} / ${statusLabels[response.status]} / ${requestLabel}`;
   }
 
-  return `${Platform.OS}: 권한 세부정보 미확인`;
+  return `${Platform.OS}: 권한 세부정보 미확인 / ${statusLabels[response.status]} / ${requestLabel}`;
 };
 
 export default function App() {
@@ -224,6 +243,38 @@ export default function App() {
     useState<ActiveSpotResultSource | null>(null);
   const [isSpotSearchPartial, setIsSpotSearchPartial] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkInitialPermission = async () => {
+      try {
+        setPermissionStatus('checking');
+
+        const permission = await Location.getForegroundPermissionsAsync();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPermissionStatus(mapPermission(permission));
+        setPermissionDetail(describePermissionDetails(permission));
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setPermissionStatus('unknown');
+        setPermissionDetail('위치 권한 상태를 확인하지 못했습니다.');
+      }
+    };
+
+    checkInitialPermission();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const moveCamera = (target: typeof SEOUL_CITY_HALL) => {
     mapRef.current?.animateCameraTo({
       latitude: target.latitude,
@@ -250,21 +301,18 @@ export default function App() {
       setLookupStatus('locating');
       setPermissionDetail(null);
 
-      const servicesEnabled = await Location.hasServicesEnabledAsync();
-
-      if (!servicesEnabled) {
-        setPermissionStatus('unavailable');
-        setLookupStatus('location-service-disabled');
-        setNearbySearchStatus('location-unavailable');
-        setNearbySearchMessage('기기 위치 서비스가 꺼져 있어 주변 검색을 실행하지 않았습니다.');
-        return;
-      }
-
       const permission = await Location.requestForegroundPermissionsAsync();
       const nextPermissionStatus = mapPermission(permission);
 
       setPermissionStatus(nextPermissionStatus);
       setPermissionDetail(describePermissionDetails(permission));
+
+      if (nextPermissionStatus === 'requestable') {
+        setLookupStatus('permission-undetermined');
+        setNearbySearchStatus('location-unavailable');
+        setNearbySearchMessage('위치 권한 요청이 완료되지 않아 주변 검색을 실행하지 않았습니다.');
+        return;
+      }
 
       if (nextPermissionStatus === 'denied') {
         setLookupStatus('permission-denied');
@@ -277,6 +325,16 @@ export default function App() {
         setLookupStatus('permission-blocked');
         setNearbySearchStatus('location-unavailable');
         setNearbySearchMessage('설정에서 위치 권한을 허용한 뒤 다시 시도해 주세요.');
+        return;
+      }
+
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+
+      if (!servicesEnabled) {
+        setPermissionStatus('unavailable');
+        setLookupStatus('location-service-disabled');
+        setNearbySearchStatus('location-unavailable');
+        setNearbySearchMessage('기기 위치 서비스가 꺼져 있어 주변 검색을 실행하지 않았습니다.');
         return;
       }
 
