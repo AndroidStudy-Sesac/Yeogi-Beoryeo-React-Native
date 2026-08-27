@@ -11,9 +11,6 @@
     "ios": {
       "bundleIdentifier": "com.team.yeogibeoryeo.rn"
     },
-    "plugins": [
-      "expo-asset",
-      "expo-status-bar"
-    ]
+    "plugins": ["expo-asset", "expo-status-bar"]
   }
 }

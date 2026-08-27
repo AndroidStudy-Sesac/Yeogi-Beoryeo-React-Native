@@ -1,4 +1,4 @@
 module.exports = {
-  preset: 'jest-expo',
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  preset: "jest-expo",
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
 };
