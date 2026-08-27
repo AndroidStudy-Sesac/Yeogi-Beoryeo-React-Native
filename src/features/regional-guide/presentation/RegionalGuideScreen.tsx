@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,8 +10,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import {
+  createRegionalGuideApiClient,
+  type RegionalGuideApiClient,
+} from "../data/regionalGuideApi";
+import type { RegionalDisposalGuide } from "../domain/RegionalDisposalGuide";
 import type { Region, RegionLevel } from "../domain/Region";
 import { useRegionalGuide } from "./useRegionalGuide";
+import { useRegionalGuideApiValidation } from "./useRegionalGuideApiValidation";
+
+interface DropdownAnchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const fallbackDropdownAnchor: DropdownAnchor = {
+  x: 20,
+  y: 0,
+  width: 300,
+  height: 58,
+};
 
 interface RegionDropdownTriggerProps {
   level: RegionLevel;
@@ -18,7 +39,8 @@ interface RegionDropdownTriggerProps {
   selectedRegion?: Region;
   expanded: boolean;
   enabled: boolean;
-  onPress: () => void;
+  onOpen: (anchor: DropdownAnchor) => void;
+  onClose: () => void;
 }
 
 interface RegionDropdownProps {
@@ -28,7 +50,9 @@ interface RegionDropdownProps {
   regions: Region[];
   expanded: boolean;
   enabled: boolean;
-  onToggle: () => void;
+  anchor?: DropdownAnchor;
+  onOpen: (anchor: DropdownAnchor) => void;
+  onClose: () => void;
   onSelect: (region: Region) => void;
 }
 
@@ -39,7 +63,9 @@ function RegionDropdown({
   regions,
   expanded,
   enabled,
-  onToggle,
+  anchor,
+  onOpen,
+  onClose,
   onSelect,
 }: RegionDropdownProps) {
   return (
@@ -47,7 +73,6 @@ function RegionDropdown({
       style={[
         styles.dropdownContainer,
         level === "eupmyeondong" && styles.eupmyeondongDropdownContainer,
-        expanded && styles.expandedDropdownContainer,
       ]}
     >
       <RegionDropdownTrigger
@@ -56,13 +81,17 @@ function RegionDropdown({
         selectedRegion={selectedRegion}
         expanded={expanded}
         enabled={enabled}
-        onPress={onToggle}
+        onOpen={onOpen}
+        onClose={onClose}
       />
-      {expanded ? (
+      {expanded && anchor ? (
         <RegionDropdownMenu
+          anchor={anchor}
           level={level}
+          label={label}
           regions={regions}
           selectedId={selectedRegion?.id}
+          onDismiss={onClose}
           onSelect={onSelect}
         />
       ) : null}
@@ -76,15 +105,32 @@ function RegionDropdownTrigger({
   selectedRegion,
   expanded,
   enabled,
-  onPress,
+  onOpen,
+  onClose,
 }: RegionDropdownTriggerProps) {
+  const triggerRef = useRef<View>(null);
+
+  const handlePress = () => {
+    if (expanded) {
+      onClose();
+      return;
+    }
+
+    const trigger = triggerRef.current;
+    onOpen(fallbackDropdownAnchor);
+    trigger?.measureInWindow((x, y, width, height) => {
+      onOpen({ x, y, width, height });
+    });
+  };
+
   return (
     <Pressable
+      ref={triggerRef}
       accessibilityLabel={`${label} 선택 드롭다운`}
       accessibilityRole="button"
       accessibilityState={{ disabled: !enabled, expanded }}
       disabled={!enabled}
-      onPress={onPress}
+      onPress={handlePress}
       style={[
         styles.dropdownTrigger,
         level === "eupmyeondong" && styles.eupmyeondongTrigger,
@@ -110,60 +156,101 @@ function RegionDropdownTrigger({
 }
 
 interface RegionDropdownMenuProps {
+  anchor: DropdownAnchor;
   level: RegionLevel;
+  label: string;
   regions: Region[];
   selectedId?: string;
+  onDismiss: () => void;
   onSelect: (region: Region) => void;
 }
 
 function RegionDropdownMenu({
+  anchor,
   level,
+  label,
   regions,
   selectedId,
+  onDismiss,
   onSelect,
 }: RegionDropdownMenuProps) {
   return (
-    <ScrollView
-      nestedScrollEnabled
-      style={[
-        styles.dropdownMenu,
-        level === "eupmyeondong" && styles.eupmyeondongDropdownMenu,
-      ]}
-      contentContainerStyle={styles.dropdownMenuContent}
+    <Modal
+      animationType="none"
+      statusBarTranslucent
+      transparent
+      visible
+      onRequestClose={onDismiss}
     >
-      {regions.map((region) => {
-        const isSelected = region.id === selectedId;
-        return (
-          <Pressable
-            key={region.id}
-            accessibilityLabel={`${levelLabel(level)} 옵션: ${region.name}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isSelected }}
-            onPress={() => onSelect(region)}
-            style={[
-              styles.dropdownOption,
-              isSelected && styles.selectedDropdownOption,
-            ]}
-          >
-            <Text
-              style={[
-                styles.dropdownOptionText,
-                isSelected && styles.selectedDropdownOptionText,
-              ]}
-            >
-              {region.name}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+      <View style={styles.dropdownOverlay}>
+        <Pressable
+          accessibilityLabel={`${label} 선택 닫기`}
+          accessibilityRole="button"
+          onPress={onDismiss}
+          style={styles.dropdownDismiss}
+        />
+        <ScrollView
+          accessibilityLabel={`${label} 옵션 목록`}
+          contentContainerStyle={styles.dropdownMenuContent}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          style={[
+            styles.dropdownMenu,
+            {
+              left: anchor.x,
+              top: anchor.y + anchor.height + 4,
+              width: anchor.width,
+            },
+          ]}
+        >
+          {regions.map((region) => {
+            const isSelected = region.id === selectedId;
+            return (
+              <Pressable
+                key={region.id}
+                accessibilityLabel={`${levelLabel(level)} 옵션: ${region.name}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => onSelect(region)}
+                style={[
+                  styles.dropdownOption,
+                  isSelected && styles.selectedDropdownOption,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dropdownOptionText,
+                    isSelected && styles.selectedDropdownOptionText,
+                  ]}
+                >
+                  {region.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
-export function RegionalGuideScreen() {
+interface RegionalGuideScreenProps {
+  regionalGuideApiClient?: RegionalGuideApiClient;
+}
+
+export function RegionalGuideScreen({
+  regionalGuideApiClient,
+}: RegionalGuideScreenProps) {
   const { selected, sidoRegions, sigunguRegions, eupmyeondongRegions, select } =
     useRegionalGuide();
-  const [expandedLevel, setExpandedLevel] = useState<RegionLevel>();
+  const defaultApiClient = useMemo(() => createRegionalGuideApiClient(), []);
+  const apiClient = regionalGuideApiClient ?? defaultApiClient;
+  const { state: apiValidationState, validate } =
+    useRegionalGuideApiValidation(apiClient);
+  const [expandedDropdown, setExpandedDropdown] = useState<{
+    level: RegionLevel;
+    anchor: DropdownAnchor;
+  }>();
   const [confirmedPath, setConfirmedPath] = useState("");
   const selectedPath = [selected.sido, selected.sigungu, selected.eupmyeondong]
     .filter((region): region is Region => Boolean(region))
@@ -171,25 +258,32 @@ export function RegionalGuideScreen() {
     .join(" > ");
   const canLookup = Boolean(selected.sido && selected.sigungu);
 
-  const toggleDropdown = (level: RegionLevel) => {
-    setExpandedLevel((current) => (current === level ? undefined : level));
+  const openDropdown = (level: RegionLevel, anchor: DropdownAnchor) => {
+    setExpandedDropdown({ level, anchor });
   };
+
+  const closeDropdown = () => setExpandedDropdown(undefined);
 
   const selectRegion = (level: RegionLevel, region: Region) => {
     select(level, region);
     setConfirmedPath("");
-    setExpandedLevel(undefined);
+    closeDropdown();
   };
 
   const confirmSelection = () => {
-    if (!canLookup) return;
-    setExpandedLevel(undefined);
+    if (!selected.sigungu || !canLookup) return;
+    closeDropdown();
     setConfirmedPath(selectedPath);
+    void validate(selected.sigungu.name);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <Text style={styles.title}>지역별 배출 가이드</Text>
           <Text style={styles.subtitle}>
@@ -216,9 +310,11 @@ export function RegionalGuideScreen() {
               label="시·도"
               selectedRegion={selected.sido}
               regions={sidoRegions}
-              expanded={expandedLevel === "sido"}
+              expanded={expandedDropdown?.level === "sido"}
               enabled
-              onToggle={() => toggleDropdown("sido")}
+              anchor={expandedDropdown?.anchor}
+              onOpen={(anchor) => openDropdown("sido", anchor)}
+              onClose={closeDropdown}
               onSelect={(region) => selectRegion("sido", region)}
             />
             <RegionDropdown
@@ -226,9 +322,11 @@ export function RegionalGuideScreen() {
               label="시·군·구"
               selectedRegion={selected.sigungu}
               regions={sigunguRegions}
-              expanded={expandedLevel === "sigungu"}
+              expanded={expandedDropdown?.level === "sigungu"}
               enabled={Boolean(selected.sido)}
-              onToggle={() => toggleDropdown("sigungu")}
+              anchor={expandedDropdown?.anchor}
+              onOpen={(anchor) => openDropdown("sigungu", anchor)}
+              onClose={closeDropdown}
               onSelect={(region) => selectRegion("sigungu", region)}
             />
           </View>
@@ -238,9 +336,11 @@ export function RegionalGuideScreen() {
             label="읍면동"
             selectedRegion={selected.eupmyeondong}
             regions={eupmyeondongRegions}
-            expanded={expandedLevel === "eupmyeondong"}
+            expanded={expandedDropdown?.level === "eupmyeondong"}
             enabled={Boolean(selected.sigungu)}
-            onToggle={() => toggleDropdown("eupmyeondong")}
+            anchor={expandedDropdown?.anchor}
+            onOpen={(anchor) => openDropdown("eupmyeondong", anchor)}
+            onClose={closeDropdown}
             onSelect={(region) => selectRegion("eupmyeondong", region)}
           />
 
@@ -267,10 +367,72 @@ export function RegionalGuideScreen() {
               <Text style={styles.confirmedRegionValue}>{confirmedPath}</Text>
             </View>
           ) : null}
+
+          <RegionalGuideApiValidationResult state={apiValidationState} />
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
+}
+
+interface RegionalGuideApiValidationResultProps {
+  state: ReturnType<typeof useRegionalGuideApiValidation>["state"];
+}
+
+function RegionalGuideApiValidationResult({
+  state,
+}: RegionalGuideApiValidationResultProps) {
+  if (state.status === "idle") return null;
+
+  if (state.status === "loading") {
+    return (
+      <Text style={styles.validationMessage}>API 응답을 확인하고 있어요.</Text>
+    );
+  }
+  if (state.status === "not-found") {
+    return <Text style={styles.validationMessage}>조회 결과가 없습니다.</Text>;
+  }
+  if (state.status === "failure") {
+    return (
+      <Text style={styles.validationMessage}>
+        API 검증 실패: {failureLabel(state.reason)}
+      </Text>
+    );
+  }
+
+  return (
+    <View style={styles.validationResult}>
+      <Text style={styles.validationTitle}>API 검증 성공</Text>
+      <Text style={styles.validationValue}>{guideSummary(state.guide)}</Text>
+    </View>
+  );
+}
+
+function guideSummary(guide: RegionalDisposalGuide): string {
+  const region = [guide.sidoName, guide.sigunguName, guide.targetRegionName]
+    .filter(Boolean)
+    .join(" > ");
+  const schedules = guide.schedules
+    .map(
+      (schedule) =>
+        `${wasteTypeLabel(schedule.wasteType)} ${schedule.disposalDays ?? "미지정"}`,
+    )
+    .join(", ");
+
+  return [region, schedules].filter(Boolean).join(" · ");
+}
+
+function wasteTypeLabel(wasteType: "general" | "food" | "recyclable"): string {
+  if (wasteType === "general") return "생활폐기물";
+  if (wasteType === "food") return "음식물쓰레기";
+  return "재활용품";
+}
+
+function failureLabel(reason: string): string {
+  if (reason === "network") return "네트워크 오류";
+  if (reason === "api") return "API 오류";
+  if (reason === "configuration") return "API 키 설정 오류";
+  return "알 수 없는 오류";
 }
 
 function levelLabel(level: RegionLevel): string {
@@ -281,7 +443,7 @@ function levelLabel(level: RegionLevel): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 24 },
+  content: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 20, paddingTop: 24 },
   header: { marginBottom: 22 },
   title: { color: "#2E7D32", fontSize: 28, fontWeight: "800" },
   subtitle: {
@@ -308,9 +470,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   topDropdowns: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  dropdownContainer: { flex: 1, zIndex: 1 },
+  dropdownContainer: { flex: 1 },
   eupmyeondongDropdownContainer: { flex: 0, marginBottom: 10 },
-  expandedDropdownContainer: { zIndex: 10 },
   dropdownTrigger: {
     alignItems: "center",
     backgroundColor: "#FFFFFF",
@@ -341,24 +502,27 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 12,
   },
+  dropdownOverlay: { flex: 1 },
+  dropdownDismiss: {
+    bottom: 0,
+    left: 0,
+    position: "absolute",
+    right: 0,
+    top: 0,
+  },
   dropdownMenu: {
     backgroundColor: "#FFFFFF",
     borderColor: "#E2E5E2",
     borderRadius: 6,
     borderWidth: 1,
     elevation: 5,
-    left: 0,
     maxHeight: 260,
     position: "absolute",
-    right: 0,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.14,
     shadowRadius: 5,
-    top: 62,
-    zIndex: 20,
   },
-  eupmyeondongDropdownMenu: { top: 52 },
   dropdownMenuContent: { paddingVertical: 4 },
   dropdownOption: {
     borderBottomColor: "#ECEEEC",
@@ -397,4 +561,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 4,
   },
+  validationResult: {
+    backgroundColor: "#EFF8EF",
+    borderRadius: 12,
+    marginTop: 14,
+    padding: 14,
+  },
+  validationTitle: { color: "#2E7D32", fontSize: 13, fontWeight: "800" },
+  validationValue: {
+    color: "#16491A",
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 5,
+  },
+  validationMessage: { color: "#4D544D", fontSize: 14, marginTop: 14 },
 });
