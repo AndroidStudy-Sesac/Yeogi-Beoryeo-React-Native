@@ -86,6 +86,14 @@ npx expo export --platform ios
 - 즐겨찾기 목록 반영, 앱 강제 종료 후 복원, 상세 재진입 후 해제, 빈 상태 확인
 - Samsung SM-A315N과 iPhone, iOS 26.6에서 대표 분류 19개, 더보기와 접기, 분류 상세, 유용한 안내와 세로·가로 화면 확인
 
+### Android 기존 데이터 이전
+
+Samsung SM-A315N에서 기존 Kotlin debug 앱 versionCode 7에 홈 표시 설정 `종이`, `종이팩`과 품목 즐겨찾기 `보조배터리`를 저장했습니다. 같은 Android package의 React Native debug 앱 versionCode 8을 업데이트 설치한 뒤, 홈 표시 설정 2개와 즐겨찾기 1개가 AsyncStorage로 이전된 것을 확인했습니다. 앱을 다시 실행해도 각 값이 한 세트만 유지되어 중복 이전이 발생하지 않았습니다.
+
+이전 과정에서는 Room의 품목 즐겨찾기와 DataStore의 홈 표시 설정을 읽습니다. Android 분류 이름을 React Native의 안정 ID로 바꾸고, 이미 저장된 React Native 값은 보존합니다. 즐겨찾기는 최신 저장 시각을 기준으로 중복 없이 합치며, 모든 값을 저장한 뒤에만 이전 완료로 기록합니다. 저장에 실패하면 다음 실행에서 다시 시도합니다.
+
+QA 뒤 기존 debug 앱과 내부 데이터를 복원했고, Room 데이터베이스 관련 파일과 DataStore 파일의 SHA-256이 백업과 일치했습니다. iOS에는 이전할 Android 원본 데이터가 없으므로 Android 이전 모듈이 없으면 작업을 건너뜁니다. 자세한 구현과 검증은 [PR #51](https://github.com/AndroidStudy-Sesac/Yeogi-Beoryeo-React-Native/pull/51)에 기록했습니다.
+
 ### Android 검색 성능
 
 2026년 8월 26일 Samsung SM-A315N, Android 12에서 React Native release/Hermes build를 측정했습니다. 품목 730개를 사용했고 앱 process를 종료한 뒤 10회 다시 시작했습니다. 각 process에서 `pmp` 품목명 검색, `뽁뽁이` 별칭 검색과 결과 없음 검색을 처음 한 번 실행하고 같은 검색을 30회 반복했습니다. 시간은 `performance.now()`로 측정했고 p50과 p95는 nearest-rank 방식으로 계산했습니다.
