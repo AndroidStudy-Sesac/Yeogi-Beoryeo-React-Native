@@ -53,4 +53,4 @@ Spike 단계의 브랜치 운영, PR 규칙, Git Tag를 이용한 최종 결과 
 
 ## Spike 결과
 
-- [품목 검색 Android Spike](./spikes/item-search/README.md)
+- [품목 검색, 즐겨찾기와 홈 React Native Spike](./spikes/item-search/README.md)
