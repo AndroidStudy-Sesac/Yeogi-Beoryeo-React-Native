@@ -3,7 +3,7 @@ name: Build iOS Sideload IPA
 on:
   push:
     branches:
-      - spike/jeongmoon-13-ios-region-data-validation
+      - spike/jeongmoon-*
   workflow_dispatch:
 
 permissions:
