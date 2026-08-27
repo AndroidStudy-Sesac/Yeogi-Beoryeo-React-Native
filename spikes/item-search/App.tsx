@@ -6,10 +6,15 @@ import {
 } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LegacyItemDataModule from './modules/legacy-item-data';
-import { getBundledItemGuides, searchBundledCatalog } from './src/catalog-data';
+import {
+  getBundledItemGuides,
+  measureBundledCatalogPerformance,
+  searchBundledCatalog,
+} from './src/catalog-data';
 import { FavoriteStore } from './src/favorite-store';
 import { HomeCategoryStore } from './src/home-category-store';
 import {
@@ -40,6 +45,23 @@ type ItemSearchRouteProps = NativeStackScreenProps<
   'ItemSearch'
 > &
   Readonly<{ homeCategoryStore: HomeCategoryStore }>;
+
+function createBenchmarkPayload(): string | undefined {
+  if (process.env.EXPO_PUBLIC_ITEM_SEARCH_BENCHMARK !== '1') return undefined;
+
+  const runtime = globalThis as typeof globalThis & {
+    HermesInternal?: unknown;
+  };
+
+  return JSON.stringify({
+    measuredAt: new Date().toISOString(),
+    engine: runtime.HermesInternal === undefined ? 'unknown' : 'Hermes',
+    ...measureBundledCatalogPerformance(
+      ['pmp', '뽁뽁이', '존재하지않는품목'],
+      30,
+    ),
+  });
+}
 
 function ItemSearchRoute({
   homeCategoryStore,
@@ -103,6 +125,7 @@ export default function App() {
       ),
     [],
   );
+  const benchmarkPayload = useMemo(createBenchmarkPayload, []);
   useEffect(() => {
     let disposed = false;
 
@@ -126,6 +149,15 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      {benchmarkPayload === undefined ? null : (
+        <View
+          accessibilityLabel={`YEOGI_ITEM_SEARCH_BENCHMARK ${benchmarkPayload}`}
+          accessible
+          collapsable={false}
+          importantForAccessibility="yes"
+          style={{ height: 1, opacity: 0.01, position: 'absolute', width: 1 }}
+        />
+      )}
       <NavigationContainer>
         <StatusBar style="dark" />
         <Stack.Navigator screenOptions={{ headerShown: false }}>

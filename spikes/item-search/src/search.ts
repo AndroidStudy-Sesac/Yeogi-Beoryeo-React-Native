@@ -1,24 +1,45 @@
 import type { ItemGuide } from './catalog.ts';
 
 type RankedItem = Readonly<{ item: ItemGuide; rank: number }>;
+type SearchableItem = Readonly<{
+  item: ItemGuide;
+  name: string;
+  similarItems: readonly string[];
+}>;
+
+const searchIndexCache = new WeakMap<
+  readonly ItemGuide[],
+  readonly SearchableItem[]
+>();
 
 export function normalizeSearchText(value: string): string {
   return value.replace(/\s/gu, '');
 }
 
-function rankItem(item: ItemGuide, query: string): number | undefined {
-  const name = normalizeSearchText(item.name).toLocaleLowerCase('ko-KR');
-  const similarItems = item.similarItems.map((similarItem) =>
-    normalizeSearchText(similarItem).toLocaleLowerCase('ko-KR'),
-  );
-  const normalizedQuery = query.toLocaleLowerCase('ko-KR');
+function getSearchIndex(items: readonly ItemGuide[]): readonly SearchableItem[] {
+  const cachedIndex = searchIndexCache.get(items);
+  if (cachedIndex !== undefined) return cachedIndex;
 
-  if (name === normalizedQuery) return 0;
-  if (name.startsWith(normalizedQuery)) return 1;
-  if (name.includes(normalizedQuery)) return 2;
-  if (similarItems.some((similarItem) => similarItem === normalizedQuery)) return 3;
-  if (similarItems.some((similarItem) => similarItem.startsWith(normalizedQuery))) return 4;
-  if (similarItems.some((similarItem) => similarItem.includes(normalizedQuery))) return 5;
+  const index = items.map((item) => ({
+    item,
+    name: normalizeSearchText(item.name).toLowerCase(),
+    similarItems: item.similarItems.map((similarItem) =>
+      normalizeSearchText(similarItem).toLowerCase(),
+    ),
+  }));
+  searchIndexCache.set(items, index);
+  return index;
+}
+
+function rankItem(item: SearchableItem, query: string): number | undefined {
+  const { name, similarItems } = item;
+
+  if (name === query) return 0;
+  if (name.startsWith(query)) return 1;
+  if (name.includes(query)) return 2;
+  if (similarItems.some((similarItem) => similarItem === query)) return 3;
+  if (similarItems.some((similarItem) => similarItem.startsWith(query))) return 4;
+  if (similarItems.some((similarItem) => similarItem.includes(query))) return 5;
   return undefined;
 }
 
@@ -30,9 +51,10 @@ function isEligible(rank: number, bestRank: number): boolean {
 }
 
 function searchDirect(items: readonly ItemGuide[], query: string): ItemGuide[] {
-  const rankedItems: RankedItem[] = items.flatMap((item) => {
-    const rank = rankItem(item, query);
-    return rank === undefined ? [] : [{ item, rank }];
+  const normalizedQuery = query.toLowerCase();
+  const rankedItems: RankedItem[] = getSearchIndex(items).flatMap((item) => {
+    const rank = rankItem(item, normalizedQuery);
+    return rank === undefined ? [] : [{ item: item.item, rank }];
   });
   const bestRank = rankedItems.reduce(
     (best, rankedItem) => Math.min(best, rankedItem.rank),
