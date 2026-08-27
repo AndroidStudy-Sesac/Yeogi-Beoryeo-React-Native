@@ -66,7 +66,12 @@ export async function fetchRegionalDisposalGuides(
   }
 
   try {
-    const items = await fetchAllPages(normalizedSigunguName, serviceKey, signal, request);
+    const items = await fetchAllPages(
+      normalizedSigunguName,
+      serviceKey,
+      signal,
+      request,
+    );
     const guides = items
       .map(mapRegionalGuideItem)
       .filter((guide): guide is RegionalDisposalGuide => guide !== undefined);
@@ -80,7 +85,9 @@ export async function fetchRegionalDisposalGuides(
   }
 }
 
-export function mapRegionalGuideItem(item: unknown): RegionalDisposalGuide | undefined {
+export function mapRegionalGuideItem(
+  item: unknown,
+): RegionalDisposalGuide | undefined {
   if (!isRecord(item)) return undefined;
 
   const guide: RegionalDisposalGuide = {
@@ -95,7 +102,9 @@ export function mapRegionalGuideItem(item: unknown): RegionalDisposalGuide | und
       createSchedule("general", item, "LF_WST"),
       createSchedule("food", item, "FOD_WST"),
       createSchedule("recyclable", item, "RCYCL"),
-    ].filter((schedule): schedule is RegionalWasteSchedule => schedule !== undefined),
+    ].filter(
+      (schedule): schedule is RegionalWasteSchedule => schedule !== undefined,
+    ),
     departmentName: readText(item, "MNG_DEPT_NM"),
     departmentPhoneNumber: readText(item, "MNG_DEPT_TELNO"),
   };
@@ -113,14 +122,22 @@ async function fetchAllPages(
   let pageNo = 1;
 
   while (true) {
-    const page = await fetchPage(sigunguName, serviceKey, pageNo, signal, request);
+    const page = await fetchPage(
+      sigunguName,
+      serviceKey,
+      pageNo,
+      signal,
+      request,
+    );
     allItems.push(...page.items);
 
     if (page.totalCount === undefined || allItems.length >= page.totalCount) {
       return allItems;
     }
     if (page.items.length === 0) {
-      throw new RegionalGuideApiError("페이지네이션 응답이 totalCount보다 작습니다.");
+      throw new RegionalGuideApiError(
+        "페이지네이션 응답이 totalCount보다 작습니다.",
+      );
     }
 
     pageNo += 1;
@@ -134,16 +151,25 @@ async function fetchPage(
   signal: AbortSignal | undefined,
   request: FetchRequester,
 ): Promise<ApiPage> {
-  const response = await request(createRequestUrl(sigunguName, serviceKey, pageNo), { signal });
-  if (!response.ok) throw new RegionalGuideApiError("HTTP 요청에 실패했습니다.");
+  const response = await request(
+    createRequestUrl(sigunguName, serviceKey, pageNo),
+    { signal },
+  );
+  if (!response.ok)
+    throw new RegionalGuideApiError("HTTP 요청에 실패했습니다.");
 
   const payload: unknown = await response.json();
   const page = readApiPage(payload);
-  if (!page) throw new RegionalGuideApiError("API 응답 형식이 올바르지 않습니다.");
+  if (!page)
+    throw new RegionalGuideApiError("API 응답 형식이 올바르지 않습니다.");
   return page;
 }
 
-function createRequestUrl(sigunguName: string, serviceKey: string, pageNo: number): string {
+function createRequestUrl(
+  sigunguName: string,
+  serviceKey: string,
+  pageNo: number,
+): string {
   const params = new URLSearchParams({
     serviceKey,
     pageNo: String(pageNo),
@@ -174,25 +200,42 @@ function createSchedule(
   prefix: string,
 ): RegionalWasteSchedule | undefined {
   const disposalDays = normalizeDays(readText(item, `${prefix}_EMSN_DOW`));
-  const disposalStartTime = normalizeTime(readText(item, `${prefix}_EMSN_BGNG_TM`));
-  const disposalEndTime = normalizeTime(readText(item, `${prefix}_EMSN_END_TM`));
+  const disposalStartTime = normalizeTime(
+    readText(item, `${prefix}_EMSN_BGNG_TM`),
+  );
+  const disposalEndTime = normalizeTime(
+    readText(item, `${prefix}_EMSN_END_TM`),
+  );
   const disposalMethod = readText(item, `${prefix}_EMSN_MTHD`);
 
-  if (!disposalDays && !disposalStartTime && !disposalEndTime && !disposalMethod) {
+  if (
+    !disposalDays &&
+    !disposalStartTime &&
+    !disposalEndTime &&
+    !disposalMethod
+  ) {
     return undefined;
   }
 
-  return { wasteType, disposalDays, disposalStartTime, disposalEndTime, disposalMethod };
+  return {
+    wasteType,
+    disposalDays,
+    disposalStartTime,
+    disposalEndTime,
+    disposalMethod,
+  };
 }
 
 function normalizeDays(value: string | undefined): string | undefined {
-  return value
-    ?.replace(/요일/g, "")
-    .split(/[,+/|]/)
-    .map((day) => day.trim())
-    .filter(Boolean)
-    .filter((day, index, days) => days.indexOf(day) === index)
-    .join(", ") || undefined;
+  return (
+    value
+      ?.replace(/요일/g, "")
+      .split(/[,+/|]/)
+      .map((day) => day.trim())
+      .filter(Boolean)
+      .filter((day, index, days) => days.indexOf(day) === index)
+      .join(", ") || undefined
+  );
 }
 
 function normalizeTime(value: string | undefined): string | undefined {
@@ -235,13 +278,19 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-function readText(record: Record<string, unknown> | undefined, key: string): string | undefined {
+function readText(
+  record: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
   return record ? normalizeText(record[key]) : undefined;
 }
 
-function readResultCode(header: Record<string, unknown> | undefined): number | undefined {
+function readResultCode(
+  header: Record<string, unknown> | undefined,
+): number | undefined {
   const value = header?.resultCode;
-  if (typeof value === "number") return Number.isInteger(value) ? value : undefined;
+  if (typeof value === "number")
+    return Number.isInteger(value) ? value : undefined;
   if (typeof value !== "string" || !value.trim()) return undefined;
 
   const resultCode = Number(value);
@@ -255,7 +304,9 @@ function readNonNegativeInteger(
   const value = record[key];
   if (typeof value === "string" && !value.trim()) return undefined;
   const numberValue = typeof value === "number" ? value : Number(value);
-  return Number.isInteger(numberValue) && numberValue >= 0 ? numberValue : undefined;
+  return Number.isInteger(numberValue) && numberValue >= 0
+    ? numberValue
+    : undefined;
 }
 
 function normalizeText(value: unknown): string | undefined {

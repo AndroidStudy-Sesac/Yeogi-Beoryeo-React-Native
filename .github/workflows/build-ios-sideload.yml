@@ -1,0 +1,115 @@
+name: Build iOS Sideload IPA
+
+on:
+  push:
+    branches:
+      - spike/jeongmoon-13-ios-region-data-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_BUNDLE_IDENTIFIER: com.team.yeogibeoryeo.rn
+  IPA_BASENAME: yeogi-beoryeo-regional-guide-ios-sideload
+
+jobs:
+  build-ios-device:
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.14.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --runInBand
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Generate iOS project
+        env:
+          CI: "1"
+          EXPO_NO_TELEMETRY: "1"
+        run: |
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+
+      - name: Build unsigned iPhone device app
+        run: |
+          set -euo pipefail
+
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          project="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
+          test -n "$workspace"
+          test -n "$project"
+
+          scheme="$(
+            xcodebuild -project "$project" -list -json |
+              ruby -rjson -e 'puts JSON.parse(STDIN.read).dig("project", "schemes").first'
+          )"
+          test -n "$scheme"
+          echo "Building scheme '$scheme' for iphoneos"
+
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build
+
+      - name: Verify and package unsigned device IPA
+        run: |
+          set -euo pipefail
+
+          products_dir="build/ios-device/Build/Products/Release-iphoneos"
+          app="$(find "$products_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app"
+          test -f "$app/Info.plist"
+          test -f "$app/main.jsbundle"
+          test ! -d "$app/_CodeSignature"
+          test ! -f "$app/embedded.mobileprovision"
+
+          actual_bundle_identifier="$(
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist"
+          )"
+          test "$actual_bundle_identifier" = "$EXPECTED_BUNDLE_IDENTIFIER"
+          echo "Verified bundle identifier: $actual_bundle_identifier"
+
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -R "$app" build/ipa/Payload/
+          (cd build/ipa && zip -qry "../${IPA_BASENAME}.ipa" Payload)
+
+          test -s "build/${IPA_BASENAME}.ipa"
+          unzip -t "build/${IPA_BASENAME}.ipa"
+
+      - name: Upload unsigned device IPA
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ env.IPA_BASENAME }}
+          path: build/${{ env.IPA_BASENAME }}.ipa
+          if-no-files-found: error
+          retention-days: 7

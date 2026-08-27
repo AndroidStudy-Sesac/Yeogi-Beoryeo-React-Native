@@ -1,7 +1,7 @@
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { RegionalGuideScreen } from './src/features/regional-guide/presentation/RegionalGuideScreen';
+import { RegionalGuideScreen } from "./src/features/regional-guide/presentation/RegionalGuideScreen";
 
 export default function App() {
   return (

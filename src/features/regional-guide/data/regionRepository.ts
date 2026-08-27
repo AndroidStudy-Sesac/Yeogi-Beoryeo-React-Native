@@ -1,14 +1,15 @@
-import administrativeRegionAsset from './assets/administrativeRegions.json';
-import regionalGuideAvailabilityAsset from './assets/regionalGuideAvailability.json';
-import regionAsset from './regions.json';
-import type { Region, RegionLevel } from '../domain/Region';
+import administrativeRegionAsset from "./assets/administrativeRegions.json";
+import regionalGuideAvailabilityAsset from "./assets/regionalGuideAvailability.json";
+import regionAsset from "./regions.json";
+import type { Region, RegionLevel } from "../domain/Region";
 
 interface RegionalGuideRegionAssetItem {
   sidoName: string;
   sigunguName: string;
 }
 
-interface RegionalGuideAvailabilityAssetItem extends RegionalGuideRegionAssetItem {
+interface RegionalGuideAvailabilityAssetItem
+  extends RegionalGuideRegionAssetItem {
   managementZoneName: string;
   targetRegionName: string;
 }
@@ -36,29 +37,42 @@ export function createRegionAssetLoadResult(
 ): RegionAssetLoadResult {
   const guideRegions = parseGuideRegions(regionalGuideRegionAsset);
   const availability = parseAvailability(regionalGuideAvailabilityAsset);
-  const administrativeRegions = parseAdministrativeRegions(administrativeRegionAsset);
+  const administrativeRegions = parseAdministrativeRegions(
+    administrativeRegionAsset,
+  );
   const invalidRecordCount =
     guideRegions.invalidRecordCount +
     availability.invalidRecordCount +
     administrativeRegions.invalidRecordCount;
 
-  const availableScopes = availability.items.length > 0
-    ? availability.items.map(toScope)
-    : guideRegions.items.map(toScope);
-  const guideScopeByKey = new Map(guideRegions.items.map((region) => [scopeKey(region), region]));
-  const scopes = distinctBy(availableScopes, scopeKey).map((scope) =>
-    guideScopeByKey.get(scopeKey(scope)) ?? scope,
+  const availableScopes =
+    availability.items.length > 0
+      ? availability.items.map(toScope)
+      : guideRegions.items.map(toScope);
+  const guideScopeByKey = new Map(
+    guideRegions.items.map((region) => [scopeKey(region), region]),
+  );
+  const scopes = distinctBy(availableScopes, scopeKey).map(
+    (scope) => guideScopeByKey.get(scopeKey(scope)) ?? scope,
   );
   const sidoRegions = distinctBy(scopes, (scope) => scope.sidoName)
     .sort(byName((scope) => scope.sidoName))
-    .map((scope) => toRegion('sido', scope.sidoName));
+    .map((scope) => toRegion("sido", scope.sidoName));
   const sigunguRegions = scopes
     .sort(byScope)
-    .map((scope) => toRegion('sigungu', scope.sigunguName, sidoId(scope.sidoName)));
+    .map((scope) =>
+      toRegion("sigungu", scope.sigunguName, sidoId(scope.sidoName)),
+    );
   const eupmyeondongRegions = scopes.flatMap((scope) => {
-    const administrationInScope = administrativeRegions.items.filter((region) => isSameScope(scope, region));
-    const availabilityInScope = availability.items.filter((region) => isSameScope(scope, region));
-    const hasDetailedCoverage = availabilityInScope.some(hasEupmyeondongCoverage);
+    const administrationInScope = administrativeRegions.items.filter((region) =>
+      isSameScope(scope, region),
+    );
+    const availabilityInScope = availability.items.filter((region) =>
+      isSameScope(scope, region),
+    );
+    const hasDetailedCoverage = availabilityInScope.some(
+      hasEupmyeondongCoverage,
+    );
     const availableAdministrativeRegions = hasDetailedCoverage
       ? administrationInScope.filter((region) =>
           availabilityInScope.some((availableRegion) =>
@@ -67,9 +81,14 @@ export function createRegionAssetLoadResult(
         )
       : administrationInScope;
 
-    return distinctBy(availableAdministrativeRegions, (region) => region.eupmyeondongName)
+    return distinctBy(
+      availableAdministrativeRegions,
+      (region) => region.eupmyeondongName,
+    )
       .sort(byName((region) => region.eupmyeondongName))
-      .map((region) => toRegion('eupmyeondong', region.eupmyeondongName, sigunguId(scope)));
+      .map((region) =>
+        toRegion("eupmyeondong", region.eupmyeondongName, sigunguId(scope)),
+      );
   });
 
   return {
@@ -92,32 +111,38 @@ export function getRegionAssetLoadResult(): RegionAssetLoadResult {
   return regionAssetLoadResult;
 }
 
-function parseGuideRegions(asset: unknown): ParseResult<RegionalGuideRegionAssetItem> {
+function parseGuideRegions(
+  asset: unknown,
+): ParseResult<RegionalGuideRegionAssetItem> {
   return parseAsset(asset, (item) => {
-    const sidoName = readRequiredString(item, 'sidoName');
-    const sigunguName = readRequiredString(item, 'sigunguName');
+    const sidoName = readRequiredString(item, "sidoName");
+    const sigunguName = readRequiredString(item, "sigunguName");
     return sidoName && sigunguName ? { sidoName, sigunguName } : undefined;
   });
 }
 
-function parseAvailability(asset: unknown): ParseResult<RegionalGuideAvailabilityAssetItem> {
+function parseAvailability(
+  asset: unknown,
+): ParseResult<RegionalGuideAvailabilityAssetItem> {
   return parseAsset(asset, (item) => {
-    const sidoName = readRequiredString(item, 'sidoName');
-    const sigunguName = readRequiredString(item, 'sigunguName');
-    const managementZoneName = readRequiredString(item, 'managementZoneName');
-    const targetRegionName = readRequiredString(item, 'targetRegionName');
+    const sidoName = readRequiredString(item, "sidoName");
+    const sigunguName = readRequiredString(item, "sigunguName");
+    const managementZoneName = readRequiredString(item, "managementZoneName");
+    const targetRegionName = readRequiredString(item, "targetRegionName");
     return sidoName && sigunguName && managementZoneName && targetRegionName
       ? { sidoName, sigunguName, managementZoneName, targetRegionName }
       : undefined;
   });
 }
 
-function parseAdministrativeRegions(asset: unknown): ParseResult<AdministrativeRegionAssetItem> {
+function parseAdministrativeRegions(
+  asset: unknown,
+): ParseResult<AdministrativeRegionAssetItem> {
   return parseAsset(asset, (item) => {
-    const adminCode = readRequiredString(item, 'adminCode');
-    const sidoName = readRequiredString(item, 'sidoName');
-    const sigunguName = readRequiredString(item, 'sigunguName');
-    const eupmyeondongName = readRequiredString(item, 'eupmyeondongName');
+    const adminCode = readRequiredString(item, "adminCode");
+    const sidoName = readRequiredString(item, "sidoName");
+    const sigunguName = readRequiredString(item, "sigunguName");
+    const eupmyeondongName = readRequiredString(item, "eupmyeondongName");
     return adminCode && sidoName && sigunguName && eupmyeondongName
       ? { adminCode, sidoName, sigunguName, eupmyeondongName }
       : undefined;
@@ -146,16 +171,25 @@ function parseAsset<T>(
   return { items, invalidRecordCount };
 }
 
-function readRequiredString(item: Record<string, unknown>, key: string): string | undefined {
+function readRequiredString(
+  item: Record<string, unknown>,
+  key: string,
+): string | undefined {
   const value = item[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function hasEupmyeondongCoverage(region: RegionalGuideAvailabilityAssetItem): boolean {
+function hasEupmyeondongCoverage(
+  region: RegionalGuideAvailabilityAssetItem,
+): boolean {
   return [region.managementZoneName, region.targetRegionName].some((name) =>
-    name.split(/[,+/]/).some((part) =>
-      /[읍면동]$/.test(normalizeName(part)) || /(?:동지역|읍면지역)$/.test(normalizeName(part)),
-    ),
+    name
+      .split(/[,+/]/)
+      .some(
+        (part) =>
+          /[읍면동]$/.test(normalizeName(part)) ||
+          /(?:동지역|읍면지역)$/.test(normalizeName(part)),
+      ),
   );
 }
 
@@ -169,21 +203,31 @@ function matchesEupmyeondong(
       const normalizedPart = normalizeName(part);
       return (
         normalizedPart === normalizedEupmyeondong ||
-        normalizedPart.replace(/제(?=\d)/g, '') === normalizedEupmyeondong.replace(/제(?=\d)/g, '') ||
-        (normalizedPart === '동지역' && normalizedEupmyeondong.endsWith('동')) ||
-        (normalizedPart === '읍면지역' && /[읍면]$/.test(normalizedEupmyeondong))
+        normalizedPart.replace(/제(?=\d)/g, "") ===
+          normalizedEupmyeondong.replace(/제(?=\d)/g, "") ||
+        (normalizedPart === "동지역" &&
+          normalizedEupmyeondong.endsWith("동")) ||
+        (normalizedPart === "읍면지역" &&
+          /[읍면]$/.test(normalizedEupmyeondong))
       );
     }),
   );
 }
 
-function toScope(region: RegionalGuideRegionAssetItem): RegionalGuideRegionAssetItem {
+function toScope(
+  region: RegionalGuideRegionAssetItem,
+): RegionalGuideRegionAssetItem {
   return { sidoName: region.sidoName, sigunguName: region.sigunguName };
 }
 
-function isSameScope(first: RegionalGuideRegionAssetItem, second: RegionalGuideRegionAssetItem): boolean {
-  return first.sidoName === second.sidoName
-    && normalizeSigungu(first.sigunguName) === normalizeSigungu(second.sigunguName);
+function isSameScope(
+  first: RegionalGuideRegionAssetItem,
+  second: RegionalGuideRegionAssetItem,
+): boolean {
+  return (
+    first.sidoName === second.sidoName &&
+    normalizeSigungu(first.sigunguName) === normalizeSigungu(second.sigunguName)
+  );
 }
 
 function scopeKey(region: RegionalGuideRegionAssetItem): string {
@@ -199,33 +243,41 @@ function sigunguId(region: RegionalGuideRegionAssetItem): string {
 }
 
 function toRegion(level: RegionLevel, name: string, parentId?: string): Region {
-  const id = level === 'sido' ? sidoId(name) : `${level}:${parentId}:${name}`;
+  const id = level === "sido" ? sidoId(name) : `${level}:${parentId}:${name}`;
   return { id, name, level, parentId };
 }
 
 function normalizeSigungu(sigunguName: string): string {
-  return sigunguName.trim().replace(/시$/, '');
+  return sigunguName.trim().replace(/시$/, "");
 }
 
 function normalizeName(name: string): string {
-  return name.replace(/\s/g, '').trim();
+  return name.replace(/\s/g, "").trim();
 }
 
 function distinctBy<T>(items: T[], keySelector: (item: T) => string): T[] {
   return [...new Map(items.map((item) => [keySelector(item), item])).values()];
 }
 
-function byName<T>(selector: (item: T) => string): (first: T, second: T) => number {
-  return (first, second) => selector(first).localeCompare(selector(second), 'ko');
+function byName<T>(
+  selector: (item: T) => string,
+): (first: T, second: T) => number {
+  return (first, second) =>
+    selector(first).localeCompare(selector(second), "ko");
 }
 
-function byScope(first: RegionalGuideRegionAssetItem, second: RegionalGuideRegionAssetItem): number {
-  return first.sidoName.localeCompare(second.sidoName, 'ko')
-    || first.sigunguName.localeCompare(second.sigunguName, 'ko');
+function byScope(
+  first: RegionalGuideRegionAssetItem,
+  second: RegionalGuideRegionAssetItem,
+): number {
+  return (
+    first.sidoName.localeCompare(second.sidoName, "ko") ||
+    first.sigunguName.localeCompare(second.sigunguName, "ko")
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }
 
 interface ParseResult<T> {

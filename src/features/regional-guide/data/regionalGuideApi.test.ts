@@ -9,11 +9,16 @@ const config = { serviceKey: "test-key" };
 
 describe("지역별 배출 안내 API", () => {
   it("시군구 조건과 Android와 같은 요청 파라미터로 조회한다", async () => {
-    const request = jest.fn().mockResolvedValue(jsonResponse(apiResponse([guideItem()])));
+    const request = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(apiResponse([guideItem()])));
 
     await fetchRegionalDisposalGuides("수원시", config, undefined, request);
 
-    const [url, options] = request.mock.calls[0] as [string, { signal?: AbortSignal }];
+    const [url, options] = request.mock.calls[0] as [
+      string,
+      { signal?: AbortSignal },
+    ];
     const params = new URL(url).searchParams;
     expect(params.get("cond[SGG_NM::LIKE]")).toBe("수원시");
     expect(params.get("returnType")).toBe("json");
@@ -38,8 +43,16 @@ describe("지역별 배출 안내 API", () => {
           disposalEndTime: "23:00",
           disposalMethod: "종량제 봉투 배출",
         },
-        { wasteType: "food", disposalDays: "매일", disposalMethod: "전용 수거함 배출" },
-        { wasteType: "recyclable", disposalDays: "목", disposalStartTime: "20:00" },
+        {
+          wasteType: "food",
+          disposalDays: "매일",
+          disposalMethod: "전용 수거함 배출",
+        },
+        {
+          wasteType: "recyclable",
+          disposalDays: "목",
+          disposalStartTime: "20:00",
+        },
       ],
       departmentName: "청소행정과",
       departmentPhoneNumber: "031-123-4567",
@@ -47,19 +60,32 @@ describe("지역별 배출 안내 API", () => {
   });
 
   it("성공 응답에 유효한 항목이 없으면 결과 없음으로 분류한다", async () => {
-    const request = jest.fn().mockResolvedValue(jsonResponse(apiResponse([{ CTPV_NM: "  " }])));
+    const request = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(apiResponse([{ CTPV_NM: "  " }])));
 
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, request)).resolves.toEqual({
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, undefined, request),
+    ).resolves.toEqual({
       status: "not-found",
     });
   });
 
   it("단일 항목 응답과 Android API의 숫자 성공 코드 0을 처리한다", async () => {
-    const request = jest.fn().mockResolvedValue(
-      jsonResponse({ response: { header: { resultCode: 0 }, body: { items: { item: guideItem() } } } }),
-    );
+    const request = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({
+          response: {
+            header: { resultCode: 0 },
+            body: { items: { item: guideItem() } },
+          },
+        }),
+      );
 
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, request)).resolves.toMatchObject({
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, undefined, request),
+    ).resolves.toMatchObject({
       status: "success",
       guides: [expect.objectContaining({ sigunguName: "수원시" })],
     });
@@ -71,11 +97,15 @@ describe("지역별 배출 안내 API", () => {
     const request = jest.fn((url: string) => {
       const pageNo = new URL(url).searchParams.get("pageNo");
       return Promise.resolve(
-        jsonResponse(apiResponse(pageNo === "1" ? [firstItem] : [secondItem], 2)),
+        jsonResponse(
+          apiResponse(pageNo === "1" ? [firstItem] : [secondItem], 2),
+        ),
       );
     });
 
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, request)).resolves.toMatchObject({
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, undefined, request),
+    ).resolves.toMatchObject({
       status: "success",
       guides: [
         expect.objectContaining({ managementZoneName: "1권역" }),
@@ -86,28 +116,49 @@ describe("지역별 배출 안내 API", () => {
   });
 
   it("네트워크, HTTP API, API 헤더 오류를 구분한다", async () => {
-    const networkRequest = jest.fn().mockRejectedValue(new TypeError("Network request failed"));
-    const httpRequest = jest.fn().mockResolvedValue(new Response(null, { status: 500 }));
-    const apiRequest = jest.fn().mockResolvedValue(
-      jsonResponse({ response: { header: { resultCode: "30" } } }),
-    );
-    const malformedRequest = jest.fn().mockResolvedValue(
-      jsonResponse({ response: { header: { resultCode: "00" } } }),
-    );
+    const networkRequest = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Network request failed"));
+    const httpRequest = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 500 }));
+    const apiRequest = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ response: { header: { resultCode: "30" } } }),
+      );
+    const malformedRequest = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ response: { header: { resultCode: "00" } } }),
+      );
 
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, networkRequest)).resolves.toEqual({
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, undefined, networkRequest),
+    ).resolves.toEqual({
       status: "failure",
       reason: "network",
     });
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, httpRequest)).resolves.toEqual({
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, undefined, httpRequest),
+    ).resolves.toEqual({
       status: "failure",
       reason: "api",
     });
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, apiRequest)).resolves.toEqual({
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, undefined, apiRequest),
+    ).resolves.toEqual({
       status: "failure",
       reason: "api",
     });
-    await expect(fetchRegionalDisposalGuides("수원시", config, undefined, malformedRequest)).resolves.toEqual({
+    await expect(
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        malformedRequest,
+      ),
+    ).resolves.toEqual({
       status: "failure",
       reason: "api",
     });
@@ -119,9 +170,9 @@ describe("지역별 배출 안내 API", () => {
     abortError.name = "AbortError";
     const request = jest.fn().mockRejectedValue(abortError);
 
-    await expect(fetchRegionalDisposalGuides("수원시", config, controller.signal, request)).rejects.toBe(
-      abortError,
-    );
+    await expect(
+      fetchRegionalDisposalGuides("수원시", config, controller.signal, request),
+    ).rejects.toBe(abortError);
     expect(request.mock.calls[0][1]).toEqual({ signal: controller.signal });
   });
 
@@ -129,21 +180,29 @@ describe("지역별 배출 안내 API", () => {
     const request = jest.fn();
 
     await expect(
-      fetchRegionalDisposalGuides("수원시", createRegionalGuideApiConfig({}), undefined, request),
+      fetchRegionalDisposalGuides(
+        "수원시",
+        createRegionalGuideApiConfig({}),
+        undefined,
+        request,
+      ),
     ).resolves.toEqual({ status: "failure", reason: "configuration" });
     expect(request).not.toHaveBeenCalled();
   });
 
   it("API 클라이언트는 주입된 구성과 요청 구현을 사용한다", async () => {
-    const request = jest.fn().mockResolvedValue(jsonResponse(apiResponse([guideItem()])));
+    const request = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(apiResponse([guideItem()])));
     const client = createRegionalGuideApiClient(config, request);
 
-    await expect(client.fetchRegionalDisposalGuides("수원시")).resolves.toMatchObject({
+    await expect(
+      client.fetchRegionalDisposalGuides("수원시"),
+    ).resolves.toMatchObject({
       status: "success",
     });
     expect(request).toHaveBeenCalledTimes(1);
   });
-
 });
 
 function jsonResponse(body: unknown): Response {
@@ -157,7 +216,10 @@ function apiResponse(items: unknown[], totalCount?: number) {
   return {
     response: {
       header: { resultCode: "00" },
-      body: { items: { item: items }, ...(totalCount === undefined ? {} : { totalCount }) },
+      body: {
+        items: { item: items },
+        ...(totalCount === undefined ? {} : { totalCount }),
+      },
     },
   };
 }
