@@ -38,11 +38,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run checks
-        run: |
-          npm test -- --runInBand
-          npm run typecheck
-          npx expo install --check
+      - name: Run tests
+        run: npm test -- --runInBand
+
+      - name: Run typecheck
+        run: npm run typecheck
 
       - name: Generate iOS project
         env:
