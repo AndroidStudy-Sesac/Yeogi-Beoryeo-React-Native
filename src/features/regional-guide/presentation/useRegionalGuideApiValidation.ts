@@ -68,7 +68,13 @@ export function useRegionalGuideApiValidation(client: RegionalGuideApiClient) {
     [client],
   );
 
-  return { state, validate };
+  const reset = useCallback(() => {
+    activeControllerRef.current?.abort();
+    activeControllerRef.current = undefined;
+    setState({ status: "idle" });
+  }, []);
+
+  return { state, validate, reset };
 }
 
 function isAbortError(error: unknown): boolean {

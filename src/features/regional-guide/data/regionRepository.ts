@@ -107,6 +107,10 @@ export function findRegionById(id: string): Region | undefined {
   return regionAssetLoadResult.regions.find((region) => region.id === id);
 }
 
+export function getAvailableRegions(): Region[] {
+  return [...regionAssetLoadResult.regions];
+}
+
 export function getRegionAssetLoadResult(): RegionAssetLoadResult {
   return regionAssetLoadResult;
 }
@@ -226,7 +230,20 @@ function isSameScope(
 ): boolean {
   return (
     first.sidoName === second.sidoName &&
-    normalizeSigungu(first.sigunguName) === normalizeSigungu(second.sigunguName)
+    isSameSigunguScope(first.sigunguName, second.sigunguName)
+  );
+}
+
+function isSameSigunguScope(first: string, second: string): boolean {
+  const firstName = first.trim();
+  const secondName = second.trim();
+  const firstKey = normalizeSigungu(firstName);
+  const secondKey = normalizeSigungu(secondName);
+
+  return (
+    firstKey === secondKey ||
+    firstName.startsWith(`${secondName} `) ||
+    secondName.startsWith(`${firstName} `)
   );
 }
 

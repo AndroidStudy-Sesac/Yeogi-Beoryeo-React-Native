@@ -1,0 +1,95 @@
+{
+  "regions": [
+    { "id": "sido:seoul", "name": "서울특별시", "level": "sido" },
+    {
+      "id": "sigungu:gangnam",
+      "name": "강남구",
+      "level": "sigungu",
+      "parentId": "sido:seoul"
+    },
+    {
+      "id": "dong:yeoksam1",
+      "name": "역삼1동",
+      "level": "eupmyeondong",
+      "parentId": "sigungu:gangnam"
+    },
+    {
+      "id": "dong:yeoksam2",
+      "name": "역삼2동",
+      "level": "eupmyeondong",
+      "parentId": "sigungu:gangnam"
+    },
+    { "id": "sido:gangwon", "name": "강원특별자치도", "level": "sido" },
+    {
+      "id": "sigungu:gangneung",
+      "name": "강릉시",
+      "level": "sigungu",
+      "parentId": "sido:gangwon"
+    },
+    {
+      "id": "dong:gangnam",
+      "name": "강남동",
+      "level": "eupmyeondong",
+      "parentId": "sigungu:gangneung"
+    },
+    { "id": "sido:integrated", "name": "전남광주통합특별시", "level": "sido" },
+    {
+      "id": "sigungu:gwangju-seogu",
+      "name": "서구",
+      "level": "sigungu",
+      "parentId": "sido:integrated"
+    },
+    { "id": "sido:sejong", "name": "세종특별자치시", "level": "sido" },
+    {
+      "id": "sigungu:sejong-none",
+      "name": "없음",
+      "level": "sigungu",
+      "parentId": "sido:sejong"
+    }
+  ],
+  "classifications": [
+    { "query": "   ", "expected": "empty" },
+    { "query": "서울시 강남구 테헤란로 123", "expected": "address" },
+    { "query": "경기도 성남시", "expected": "region-keyword" },
+    { "query": "온양1동", "expected": "region-keyword" },
+    { "query": "남대문로 63", "expected": "region-keyword" }
+  ],
+  "searches": [
+    {
+      "query": "서울시 강남구 테헤란로 123",
+      "status": "resolved",
+      "displayNames": ["서울특별시 강남구"]
+    },
+    {
+      "query": "강원도 강릉시",
+      "status": "resolved",
+      "displayNames": ["강원특별자치도 강릉시"]
+    },
+    {
+      "query": "역삼동",
+      "status": "candidates",
+      "displayNames": ["서울특별시 강남구 역삼1동", "서울특별시 강남구 역삼2동"]
+    },
+    {
+      "query": "서울 강남구 역삼동",
+      "status": "candidates",
+      "displayNames": ["서울특별시 강남구 역삼1동", "서울특별시 강남구 역삼2동"]
+    },
+    {
+      "query": "강남동",
+      "status": "resolved",
+      "displayNames": ["강원특별자치도 강릉시 강남동"]
+    },
+    {
+      "query": "전남광주통합특별시 서구 풍금로151번길 14",
+      "status": "resolved",
+      "displayNames": ["광주광역시 서구"]
+    },
+    {
+      "query": "세종",
+      "status": "resolved",
+      "displayNames": ["세종특별자치시"]
+    },
+    { "query": "없는동", "status": "not-found", "displayNames": [] }
+  ]
+}
