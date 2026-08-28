@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { findRegions } from "../data/regionRepository";
 import type { Region, RegionLevel, SelectedRegion } from "../domain/Region";
@@ -17,13 +17,24 @@ export function useRegionalGuide() {
     [selected.sigungu],
   );
 
-  const select = (level: RegionLevel, region: Region) => {
+  const select = useCallback((level: RegionLevel, region: Region) => {
     setSelected((current) => {
       if (level === "sido") return { sido: region };
       if (level === "sigungu") return { sido: current.sido, sigungu: region };
       return { ...current, eupmyeondong: region };
     });
-  };
+  }, []);
 
-  return { selected, sidoRegions, sigunguRegions, eupmyeondongRegions, select };
+  const selectRegion = useCallback((region: SelectedRegion) => {
+    setSelected(region);
+  }, []);
+
+  return {
+    selected,
+    sidoRegions,
+    sigunguRegions,
+    eupmyeondongRegions,
+    select,
+    selectRegion,
+  };
 }

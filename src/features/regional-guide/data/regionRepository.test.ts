@@ -78,4 +78,32 @@ describe("지역 asset 변환", () => {
         .map((region) => region.name),
     ).toEqual(["번1동", "번2동"]);
   });
+
+  it("행정구가 포함된 행정동을 배출 안내 시 단위 범위에 연결한다", () => {
+    const result = createRegionAssetLoadResult(
+      [{ sidoName: "경기도", sigunguName: "수원시" }],
+      [
+        {
+          sidoName: "경기도",
+          sigunguName: "수원시",
+          managementZoneName: "망포1동",
+          targetRegionName: "망포1동",
+        },
+      ],
+      [
+        {
+          adminCode: "1",
+          sidoName: "경기도",
+          sigunguName: "수원시 영통구",
+          eupmyeondongName: "망포1동",
+        },
+      ],
+    );
+
+    expect(result.regions.map((region) => region.name)).toEqual([
+      "경기도",
+      "수원시",
+      "망포1동",
+    ]);
+  });
 });

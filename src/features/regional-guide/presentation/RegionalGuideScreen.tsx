@@ -1,5 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
@@ -14,10 +16,13 @@ import {
   createRegionalGuideApiClient,
   type RegionalGuideApiClient,
 } from "../data/regionalGuideApi";
+import type { RegionSearchClient } from "../data/regionSearchClient";
 import type { RegionalDisposalGuide } from "../domain/RegionalDisposalGuide";
 import type { Region, RegionLevel } from "../domain/Region";
+import type { RegionSearchCandidate } from "../domain/RegionSearchModel";
 import { useRegionalGuide } from "./useRegionalGuide";
 import { useRegionalGuideApiValidation } from "./useRegionalGuideApiValidation";
+import { useRegionSearch } from "./useRegionSearch";
 
 interface DropdownAnchor {
   x: number;
@@ -236,27 +241,73 @@ function RegionDropdownMenu({
 
 interface RegionalGuideScreenProps {
   regionalGuideApiClient?: RegionalGuideApiClient;
+  regionSearchClient?: RegionSearchClient;
 }
 
 export function RegionalGuideScreen({
   regionalGuideApiClient,
+  regionSearchClient,
 }: RegionalGuideScreenProps) {
-  const { selected, sidoRegions, sigunguRegions, eupmyeondongRegions, select } =
-    useRegionalGuide();
+  const {
+    selected,
+    sidoRegions,
+    sigunguRegions,
+    eupmyeondongRegions,
+    select,
+    selectRegion: selectRegionPath,
+  } = useRegionalGuide();
   const defaultApiClient = useMemo(() => createRegionalGuideApiClient(), []);
   const apiClient = regionalGuideApiClient ?? defaultApiClient;
-  const { state: apiValidationState, validate } =
-    useRegionalGuideApiValidation(apiClient);
+  const {
+    state: apiValidationState,
+    validate,
+    reset: resetValidation,
+  } = useRegionalGuideApiValidation(apiClient);
+  const {
+    query: searchQuery,
+    state: regionSearchState,
+    setQuery: setSearchQuery,
+    search,
+    cancel: cancelSearch,
+    selectCandidate,
+    restoreCandidates,
+  } = useRegionSearch(regionSearchClient);
   const [expandedDropdown, setExpandedDropdown] = useState<{
     level: RegionLevel;
     anchor: DropdownAnchor;
   }>();
   const [confirmedPath, setConfirmedPath] = useState("");
+  const [candidateHistory, setCandidateHistory] = useState<
+    RegionSearchCandidate[]
+  >([]);
   const selectedPath = [selected.sido, selected.sigungu, selected.eupmyeondong]
     .filter((region): region is Region => Boolean(region))
     .map((region) => region.name)
     .join(" > ");
   const canLookup = Boolean(selected.sido && selected.sigungu);
+
+  useEffect(() => {
+    if (regionSearchState.status !== "resolved") return;
+
+    const candidate = regionSearchState.candidate;
+    selectRegionPath(candidate.region);
+    setConfirmedPath(
+      [
+        candidate.region.sido,
+        candidate.region.sigungu,
+        candidate.region.eupmyeondong,
+      ]
+        .filter(
+          (region): region is Region =>
+            Boolean(region) && region?.name !== "없음",
+        )
+        .map((region) => region.name)
+        .join(" > "),
+    );
+    if (candidate.region.sigungu) {
+      void validate(candidate.region.sigungu.name);
+    }
+  }, [regionSearchState, selectRegionPath, validate]);
 
   const openDropdown = (level: RegionLevel, anchor: DropdownAnchor) => {
     setExpandedDropdown({ level, anchor });
@@ -264,8 +315,9 @@ export function RegionalGuideScreen({
 
   const closeDropdown = () => setExpandedDropdown(undefined);
 
-  const selectRegion = (level: RegionLevel, region: Region) => {
+  const selectDropdownRegion = (level: RegionLevel, region: Region) => {
     select(level, region);
+    resetValidation();
     setConfirmedPath("");
     closeDropdown();
   };
@@ -275,6 +327,40 @@ export function RegionalGuideScreen({
     closeDropdown();
     setConfirmedPath(selectedPath);
     void validate(selected.sigungu.name);
+  };
+
+  const submitSearch = () => {
+    Keyboard.dismiss();
+    void search();
+  };
+
+  const changeSearchQuery = (value: string) => {
+    setCandidateHistory([]);
+    setConfirmedPath("");
+    resetValidation();
+    setSearchQuery(value);
+  };
+
+  const clearSearch = () => {
+    Keyboard.dismiss();
+    setCandidateHistory([]);
+    setConfirmedPath("");
+    resetValidation();
+    cancelSearch();
+  };
+
+  const chooseSearchCandidate = (candidate: RegionSearchCandidate) => {
+    if (regionSearchState.status === "candidates") {
+      setCandidateHistory(regionSearchState.candidates);
+    }
+    Keyboard.dismiss();
+    selectCandidate(candidate);
+  };
+
+  const returnToCandidates = () => {
+    setConfirmedPath("");
+    resetValidation();
+    restoreCandidates(candidateHistory);
   };
 
   return (
@@ -295,13 +381,41 @@ export function RegionalGuideScreen({
         <View style={styles.searchBar}>
           <TextInput
             accessibilityLabel="지역명 또는 주소 검색"
-            editable={false}
+            autoCorrect={false}
+            onChangeText={changeSearchQuery}
+            onSubmitEditing={submitSearch}
             placeholder="지역명 또는 주소를 검색해주세요."
             placeholderTextColor="#697069"
+            returnKeyType="search"
             style={styles.searchInput}
+            value={searchQuery}
           />
-          <Text style={styles.searchIcon}>⌕</Text>
+          {searchQuery ? (
+            <Pressable
+              accessibilityLabel="지역 검색 취소"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={clearSearch}
+            >
+              <Text style={styles.cancelSearchText}>취소</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              accessibilityLabel="지역 검색 실행"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={submitSearch}
+            >
+              <Text style={styles.searchIcon}>⌕</Text>
+            </Pressable>
+          )}
         </View>
+
+        <RegionSearchResult
+          state={regionSearchState}
+          onRetry={submitSearch}
+          onSelect={chooseSearchCandidate}
+        />
 
         <View style={styles.selectorCard}>
           <View style={styles.topDropdowns}>
@@ -315,7 +429,7 @@ export function RegionalGuideScreen({
               anchor={expandedDropdown?.anchor}
               onOpen={(anchor) => openDropdown("sido", anchor)}
               onClose={closeDropdown}
-              onSelect={(region) => selectRegion("sido", region)}
+              onSelect={(region) => selectDropdownRegion("sido", region)}
             />
             <RegionDropdown
               level="sigungu"
@@ -327,7 +441,7 @@ export function RegionalGuideScreen({
               anchor={expandedDropdown?.anchor}
               onOpen={(anchor) => openDropdown("sigungu", anchor)}
               onClose={closeDropdown}
-              onSelect={(region) => selectRegion("sigungu", region)}
+              onSelect={(region) => selectDropdownRegion("sigungu", region)}
             />
           </View>
 
@@ -341,7 +455,7 @@ export function RegionalGuideScreen({
             anchor={expandedDropdown?.anchor}
             onOpen={(anchor) => openDropdown("eupmyeondong", anchor)}
             onClose={closeDropdown}
-            onSelect={(region) => selectRegion("eupmyeondong", region)}
+            onSelect={(region) => selectDropdownRegion("eupmyeondong", region)}
           />
 
           {selectedPath ? (
@@ -365,6 +479,16 @@ export function RegionalGuideScreen({
             <View style={styles.confirmedRegion}>
               <Text style={styles.confirmedRegionLabel}>선택한 지역</Text>
               <Text style={styles.confirmedRegionValue}>{confirmedPath}</Text>
+              {candidateHistory.length > 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={returnToCandidates}
+                >
+                  <Text style={styles.returnToCandidatesText}>
+                    검색 결과로 돌아가기
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
 
@@ -377,6 +501,83 @@ export function RegionalGuideScreen({
 
 interface RegionalGuideApiValidationResultProps {
   state: ReturnType<typeof useRegionalGuideApiValidation>["state"];
+}
+
+interface RegionSearchResultProps {
+  state: ReturnType<typeof useRegionSearch>["state"];
+  onRetry: () => void;
+  onSelect: (candidate: RegionSearchCandidate) => void;
+}
+
+function RegionSearchResult({
+  state,
+  onRetry,
+  onSelect,
+}: RegionSearchResultProps) {
+  if (state.status === "empty" || state.status === "idle") return null;
+
+  if (state.status === "searching") {
+    return (
+      <View accessibilityLabel="지역 검색 중" style={styles.searchStateCard}>
+        <ActivityIndicator color="#2E7D32" size="small" />
+        <Text style={styles.searchStateText}>지역 후보를 찾고 있어요.</Text>
+      </View>
+    );
+  }
+
+  if (state.status === "not-found") {
+    return (
+      <View style={styles.searchStateCard}>
+        <Text style={styles.searchStateTitle}>지역 후보가 없습니다.</Text>
+        <Text style={styles.searchStateText}>
+          시·도와 시·군·구를 함께 입력해 다시 검색해주세요.
+        </Text>
+      </View>
+    );
+  }
+
+  if (state.status === "failure") {
+    return (
+      <View style={styles.searchStateCard}>
+        <Text style={styles.searchStateTitle}>지역 검색에 실패했습니다.</Text>
+        <Pressable accessibilityRole="button" onPress={onRetry}>
+          <Text style={styles.retrySearchText}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (state.status === "resolved") return null;
+
+  return (
+    <View style={styles.candidateCard}>
+      <Text style={styles.searchStateTitle}>
+        {state.candidates.length}개의 지역 후보
+      </Text>
+      <Text style={styles.searchStateText}>조회할 지역을 선택해주세요.</Text>
+      <ScrollView
+        accessibilityLabel="지역 검색 후보 목록"
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        style={styles.candidateList}
+      >
+        {state.candidates.map((candidate) => (
+          <Pressable
+            key={candidate.id}
+            accessibilityLabel={`지역 후보: ${candidate.displayName}`}
+            accessibilityRole="button"
+            onPress={() => onSelect(candidate)}
+            style={styles.candidateItem}
+          >
+            <Text style={styles.candidateItemText}>
+              {candidate.displayName}
+            </Text>
+            <Text style={styles.candidateItemArrow}>›</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
 }
 
 function RegionalGuideApiValidationResult({
@@ -443,7 +644,12 @@ function levelLabel(level: RegionLevel): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
-  content: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 20, paddingTop: 24 },
+  content: {
+    flexGrow: 1,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
   header: { marginBottom: 22 },
   title: { color: "#2E7D32", fontSize: 28, fontWeight: "800" },
   subtitle: {
@@ -463,6 +669,43 @@ const styles = StyleSheet.create({
   },
   searchInput: { color: "#414741", flex: 1, fontSize: 16, paddingVertical: 15 },
   searchIcon: { color: "#414741", fontSize: 30, lineHeight: 32 },
+  cancelSearchText: { color: "#2E7D32", fontSize: 14, fontWeight: "700" },
+  searchStateCard: {
+    alignItems: "center",
+    backgroundColor: "#F5F8F5",
+    borderRadius: 14,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 16,
+    padding: 16,
+  },
+  searchStateTitle: { color: "#202420", fontSize: 15, fontWeight: "800" },
+  searchStateText: { color: "#596159", fontSize: 14, lineHeight: 20 },
+  retrySearchText: { color: "#2E7D32", fontSize: 14, fontWeight: "800" },
+  candidateCard: {
+    backgroundColor: "#F5F8F5",
+    borderRadius: 14,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  candidateList: { marginTop: 8, maxHeight: 240 },
+  candidateItem: {
+    alignItems: "center",
+    borderTopColor: "#DCE3DC",
+    borderTopWidth: 1,
+    flexDirection: "row",
+    minHeight: 50,
+    paddingVertical: 12,
+  },
+  candidateItemText: {
+    color: "#202420",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  candidateItemArrow: { color: "#2E7D32", fontSize: 24 },
   selectorCard: {
     borderColor: "#DCE8DD",
     borderRadius: 24,
@@ -560,6 +803,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     marginTop: 4,
+  },
+  returnToCandidatesText: {
+    color: "#2E7D32",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 10,
   },
   validationResult: {
     backgroundColor: "#EFF8EF",
