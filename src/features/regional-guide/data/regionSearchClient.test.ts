@@ -52,4 +52,13 @@ describe("지역 검색 client", () => {
       ["경기도 수원시 망포1동", "경기도 수원시 망포2동"],
     );
   });
+
+  it("지역 정보가 없는 도로명만으로 전국 후보를 반환하지 않는다", async () => {
+    const result = await client.search(
+      "테헤란로 123",
+      new AbortController().signal,
+    );
+
+    expect(result).toEqual({ status: "not-found" });
+  });
 });

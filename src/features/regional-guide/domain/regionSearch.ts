@@ -57,6 +57,9 @@ export function searchAvailableRegions(
   }
 
   const parsedQuery = parseSearchQuery(query);
+  if (!hasMeaningfulSearchCriteria(parsedQuery)) {
+    return { status: "not-found" };
+  }
   const candidates = createCandidates(regions).filter((candidate) =>
     matchesParsedQuery(candidate, parsedQuery),
   );
@@ -175,6 +178,19 @@ function parseSearchQuery(query: string): ParsedSearchQuery {
   );
 
   return { sidoName, sigunguName, eupmyeondongName, remainingKeyword };
+}
+
+function hasMeaningfulSearchCriteria(query: ParsedSearchQuery): boolean {
+  return Boolean(
+    query.sidoName ||
+    isMeaningfulRegionName(query.sigunguName) ||
+    isMeaningfulRegionName(query.eupmyeondongName) ||
+    isMeaningfulRegionName(query.remainingKeyword),
+  );
+}
+
+function isMeaningfulRegionName(name: string | undefined): boolean {
+  return Boolean(name && normalizeComparableRegionName(name).length >= 2);
 }
 
 function matchesParsedQuery(
