@@ -16,12 +16,22 @@ import {
   createRegionalGuideApiClient,
   type RegionalGuideApiClient,
 } from "../data/regionalGuideApi";
+import type { RegionalGuideFavoriteRepository } from "../data/regionalGuideFavoriteRepository";
+import { createAsyncStorageRegionalGuideFavoriteRepository } from "../data/regionalGuideFavoriteStorage";
 import type { RegionSearchClient } from "../data/regionSearchClient";
 import type { RegionalDisposalGuide } from "../domain/RegionalDisposalGuide";
+import {
+  createRegionalGuideId,
+  type RegionalGuideId,
+} from "../domain/RegionalGuideFavorite";
 import type { Region, RegionLevel } from "../domain/Region";
 import type { RegionSearchCandidate } from "../domain/RegionSearchModel";
 import { useRegionalGuide } from "./useRegionalGuide";
 import { useRegionalGuideApiValidation } from "./useRegionalGuideApiValidation";
+import {
+  useRegionalGuideFavorites,
+  type RegionalGuideFavoriteState,
+} from "./useRegionalGuideFavorites";
 import { useRegionSearch } from "./useRegionSearch";
 
 interface DropdownAnchor {
@@ -241,11 +251,13 @@ function RegionDropdownMenu({
 
 interface RegionalGuideScreenProps {
   regionalGuideApiClient?: RegionalGuideApiClient;
+  regionalGuideFavoriteRepository?: RegionalGuideFavoriteRepository;
   regionSearchClient?: RegionSearchClient;
 }
 
 export function RegionalGuideScreen({
   regionalGuideApiClient,
+  regionalGuideFavoriteRepository,
   regionSearchClient,
 }: RegionalGuideScreenProps) {
   const {
@@ -258,9 +270,21 @@ export function RegionalGuideScreen({
   } = useRegionalGuide();
   const defaultApiClient = useMemo(() => createRegionalGuideApiClient(), []);
   const apiClient = regionalGuideApiClient ?? defaultApiClient;
+  const defaultFavoriteRepository = useMemo(
+    () => createAsyncStorageRegionalGuideFavoriteRepository(),
+    [],
+  );
+  const favoriteRepository =
+    regionalGuideFavoriteRepository ?? defaultFavoriteRepository;
+  const {
+    state: favoriteState,
+    toggle: toggleFavorite,
+    isFavorite,
+  } = useRegionalGuideFavorites(favoriteRepository);
   const {
     state: apiValidationState,
     validate,
+    retry: retryValidation,
     reset: resetValidation,
   } = useRegionalGuideApiValidation(apiClient);
   const {
@@ -277,6 +301,7 @@ export function RegionalGuideScreen({
     anchor: DropdownAnchor;
   }>();
   const [confirmedPath, setConfirmedPath] = useState("");
+  const [confirmedGuideId, setConfirmedGuideId] = useState<RegionalGuideId>();
   const [candidateHistory, setCandidateHistory] = useState<
     RegionSearchCandidate[]
   >([]);
@@ -304,8 +329,12 @@ export function RegionalGuideScreen({
         .map((region) => region.name)
         .join(" > "),
     );
+    setConfirmedGuideId(createRegionalGuideId(candidate.region));
     if (candidate.region.sigungu) {
-      void validate(candidate.region.sigungu.name);
+      void validate({
+        sigunguName: candidate.region.sigungu.name,
+        eupmyeondongName: candidate.region.eupmyeondong?.name,
+      });
     }
   }, [regionSearchState, selectRegionPath, validate]);
 
@@ -319,6 +348,7 @@ export function RegionalGuideScreen({
     select(level, region);
     resetValidation();
     setConfirmedPath("");
+    setConfirmedGuideId(undefined);
     closeDropdown();
   };
 
@@ -326,7 +356,11 @@ export function RegionalGuideScreen({
     if (!selected.sigungu || !canLookup) return;
     closeDropdown();
     setConfirmedPath(selectedPath);
-    void validate(selected.sigungu.name);
+    setConfirmedGuideId(createRegionalGuideId(selected));
+    void validate({
+      sigunguName: selected.sigungu.name,
+      eupmyeondongName: selected.eupmyeondong?.name,
+    });
   };
 
   const submitSearch = () => {
@@ -337,6 +371,7 @@ export function RegionalGuideScreen({
   const changeSearchQuery = (value: string) => {
     setCandidateHistory([]);
     setConfirmedPath("");
+    setConfirmedGuideId(undefined);
     resetValidation();
     setSearchQuery(value);
   };
@@ -345,6 +380,7 @@ export function RegionalGuideScreen({
     Keyboard.dismiss();
     setCandidateHistory([]);
     setConfirmedPath("");
+    setConfirmedGuideId(undefined);
     resetValidation();
     cancelSearch();
   };
@@ -359,6 +395,7 @@ export function RegionalGuideScreen({
 
   const returnToCandidates = () => {
     setConfirmedPath("");
+    setConfirmedGuideId(undefined);
     resetValidation();
     restoreCandidates(candidateHistory);
   };
@@ -492,7 +529,16 @@ export function RegionalGuideScreen({
             </View>
           ) : null}
 
-          <RegionalGuideApiValidationResult state={apiValidationState} />
+          <RegionalGuideApiValidationResult
+            state={apiValidationState}
+            favoriteState={favoriteState}
+            guideId={confirmedGuideId}
+            isFavorite={confirmedGuideId ? isFavorite(confirmedGuideId) : false}
+            onRetry={retryValidation}
+            onToggleFavorite={() => {
+              if (confirmedGuideId) toggleFavorite(confirmedGuideId);
+            }}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -501,6 +547,11 @@ export function RegionalGuideScreen({
 
 interface RegionalGuideApiValidationResultProps {
   state: ReturnType<typeof useRegionalGuideApiValidation>["state"];
+  favoriteState: RegionalGuideFavoriteState;
+  guideId?: RegionalGuideId;
+  isFavorite: boolean;
+  onRetry: () => void;
+  onToggleFavorite: () => void;
 }
 
 interface RegionSearchResultProps {
@@ -582,29 +633,141 @@ function RegionSearchResult({
 
 function RegionalGuideApiValidationResult({
   state,
+  favoriteState,
+  guideId,
+  isFavorite,
+  onRetry,
+  onToggleFavorite,
 }: RegionalGuideApiValidationResultProps) {
   if (state.status === "idle") return null;
 
   if (state.status === "loading") {
     return (
-      <Text style={styles.validationMessage}>API 응답을 확인하고 있어요.</Text>
+      <View
+        accessibilityLabel="지역별 배출 안내 조회 중"
+        accessibilityLiveRegion="polite"
+        style={styles.validationState}
+      >
+        <ActivityIndicator color="#2E7D32" size="small" />
+        <Text style={styles.validationStateTitle}>배출 안내 조회 중</Text>
+        <Text style={styles.validationMessage}>
+          선택한 지역의 안내를 불러오고 있어요.
+        </Text>
+      </View>
     );
   }
   if (state.status === "not-found") {
-    return <Text style={styles.validationMessage}>조회 결과가 없습니다.</Text>;
+    return (
+      <View
+        accessibilityLabel="지역별 배출 안내 조회 결과 없음"
+        accessibilityLiveRegion="polite"
+        style={styles.validationState}
+      >
+        <Text style={styles.validationStateTitle}>조회 결과가 없습니다.</Text>
+        <Text style={styles.validationMessage}>
+          해당 시·군·구의 배출 안내 데이터를 찾지 못했습니다.
+        </Text>
+      </View>
+    );
+  }
+  if (state.status === "not-provided") {
+    return (
+      <View
+        accessibilityLabel="선택 지역 배출 안내 미제공"
+        accessibilityLiveRegion="polite"
+        style={styles.validationState}
+      >
+        <Text style={styles.validationStateTitle}>
+          선택한 지역의 안내가 제공되지 않습니다.
+        </Text>
+        <Text style={styles.validationMessage}>
+          다른 읍·면·동을 선택하거나 시·군·구 단위로 조회해주세요.
+        </Text>
+      </View>
+    );
   }
   if (state.status === "failure") {
+    const canRetry = state.reason !== "configuration";
     return (
-      <Text style={styles.validationMessage}>
-        API 검증 실패: {failureLabel(state.reason)}
-      </Text>
+      <View
+        accessibilityLabel={`지역별 배출 안내 조회 실패: ${failureLabel(state.reason)}`}
+        accessibilityLiveRegion="assertive"
+        style={styles.validationState}
+      >
+        <Text style={styles.validationStateTitle}>
+          {failureTitle(state.reason)}
+        </Text>
+        <Text style={styles.validationMessage}>
+          {failureDescription(state.reason)}
+        </Text>
+        {canRetry ? (
+          <Pressable
+            accessibilityLabel="지역별 배출 안내 다시 조회"
+            accessibilityRole="button"
+            onPress={onRetry}
+            style={styles.retryValidationButton}
+          >
+            <Text style={styles.retryValidationText}>다시 조회</Text>
+          </Pressable>
+        ) : null}
+      </View>
     );
   }
 
   return (
-    <View style={styles.validationResult}>
-      <Text style={styles.validationTitle}>API 검증 성공</Text>
+    <View
+      accessibilityLabel="지역별 배출 안내 조회 성공"
+      accessibilityLiveRegion="polite"
+      style={styles.validationResult}
+    >
+      <View style={styles.validationHeader}>
+        <Text style={styles.validationTitle}>배출 안내</Text>
+        {guideId ? (
+          <Pressable
+            accessibilityLabel={
+              isFavorite
+                ? "지역 가이드 즐겨찾기 해제"
+                : "지역 가이드 즐겨찾기 추가"
+            }
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled: favoriteState.status === "restoring",
+              selected: isFavorite,
+            }}
+            disabled={favoriteState.status === "restoring"}
+            onPress={onToggleFavorite}
+            style={styles.favoriteButton}
+          >
+            <Text style={styles.favoriteButtonText}>
+              {favoriteState.status === "restoring"
+                ? "즐겨찾기 복원 중"
+                : isFavorite
+                  ? "★ 즐겨찾기됨"
+                  : "☆ 즐겨찾기"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.validationValue}>{guideSummary(state.guide)}</Text>
+      {favoriteState.status === "ready" &&
+      favoriteState.persistenceError === "read" ? (
+        <Text
+          accessibilityLabel="즐겨찾기 저장 데이터 읽기 실패"
+          style={styles.favoriteError}
+        >
+          저장된 즐겨찾기를 불러오지 못했습니다. 현재 조회는 계속 사용할 수
+          있습니다.
+        </Text>
+      ) : null}
+      {favoriteState.status === "ready" &&
+      favoriteState.persistenceError === "write" ? (
+        <Text
+          accessibilityLabel="즐겨찾기 저장 실패"
+          style={styles.favoriteError}
+        >
+          즐겨찾기를 저장하지 못해 이전 상태로 복원했습니다.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -634,6 +797,23 @@ function failureLabel(reason: string): string {
   if (reason === "api") return "API 오류";
   if (reason === "configuration") return "API 키 설정 오류";
   return "알 수 없는 오류";
+}
+
+function failureTitle(reason: string): string {
+  if (reason === "network") return "네트워크 오류가 발생했습니다.";
+  if (reason === "api") return "배출 안내 API 오류가 발생했습니다.";
+  if (reason === "configuration") return "API 설정이 필요합니다.";
+  return "배출 안내를 불러오지 못했습니다.";
+}
+
+function failureDescription(reason: string): string {
+  if (reason === "network")
+    return "네트워크 연결을 확인한 뒤 다시 조회해주세요.";
+  if (reason === "api") return "잠시 후 다시 조회해주세요.";
+  if (reason === "configuration") {
+    return "배출 안내 API 키가 설정되지 않았습니다.";
+  }
+  return "일시적인 오류일 수 있습니다. 다시 조회해주세요.";
 }
 
 function levelLabel(level: RegionLevel): string {
@@ -816,6 +996,11 @@ const styles = StyleSheet.create({
     marginTop: 14,
     padding: 14,
   },
+  validationHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   validationTitle: { color: "#2E7D32", fontSize: 13, fontWeight: "800" },
   validationValue: {
     color: "#16491A",
@@ -823,5 +1008,35 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginTop: 5,
   },
-  validationMessage: { color: "#4D544D", fontSize: 14, marginTop: 14 },
+  validationState: {
+    alignItems: "flex-start",
+    backgroundColor: "#F5F8F5",
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 14,
+    padding: 14,
+  },
+  validationStateTitle: {
+    color: "#202420",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  validationMessage: { color: "#4D544D", fontSize: 14, lineHeight: 21 },
+  retryValidationButton: {
+    borderColor: "#2E7D32",
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  retryValidationText: { color: "#2E7D32", fontSize: 14, fontWeight: "800" },
+  favoriteButton: { paddingHorizontal: 4, paddingVertical: 6 },
+  favoriteButtonText: { color: "#2E7D32", fontSize: 13, fontWeight: "800" },
+  favoriteError: {
+    color: "#8A3A22",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 10,
+  },
 });

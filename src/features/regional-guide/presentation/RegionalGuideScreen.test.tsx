@@ -1,18 +1,32 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react-native";
 
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
+
 import type { RegionalGuideApiClient } from "../data/regionalGuideApi";
+import type { RegionalGuideFavoriteRepository } from "../data/regionalGuideFavoriteRepository";
+import { findRegions } from "../data/regionRepository";
 import type { RegionSearchClient } from "../data/regionSearchClient";
+import { createRegionalGuideId } from "../domain/RegionalGuideFavorite";
+import type { RegionalGuideLookupResult } from "../domain/RegionalDisposalGuide";
 import type { RegionSearchCandidate } from "../domain/RegionSearchModel";
 import { RegionalGuideScreen } from "./RegionalGuideScreen";
 
 describe("RegionalGuideScreen", () => {
   it("시도·시군구·읍면동을 각각 드롭다운으로 연다", () => {
-    render(<RegionalGuideScreen regionalGuideApiClient={pendingApiClient()} />);
+    render(
+      <RegionalGuideScreen
+        regionalGuideApiClient={pendingApiClient()}
+        regionalGuideFavoriteRepository={pendingFavoriteRepository()}
+      />,
+    );
 
     expect(screen.queryByLabelText("시·도 옵션: 강원특별자치도")).toBeNull();
     expect(screen.getByLabelText("시·군·구 선택 드롭다운")).toBeDisabled();
@@ -32,7 +46,12 @@ describe("RegionalGuideScreen", () => {
   });
 
   it("지역 선택 후 조회 결과를 같은 화면에 반영한다", () => {
-    render(<RegionalGuideScreen regionalGuideApiClient={pendingApiClient()} />);
+    render(
+      <RegionalGuideScreen
+        regionalGuideApiClient={pendingApiClient()}
+        regionalGuideFavoriteRepository={pendingFavoriteRepository()}
+      />,
+    );
 
     selectGangneungRegion();
     fireEvent.press(screen.getByText("조회"));
@@ -44,7 +63,12 @@ describe("RegionalGuideScreen", () => {
   });
 
   it("상위 지역을 변경하면 하위 드롭다운 선택을 초기화한다", () => {
-    render(<RegionalGuideScreen regionalGuideApiClient={pendingApiClient()} />);
+    render(
+      <RegionalGuideScreen
+        regionalGuideApiClient={pendingApiClient()}
+        regionalGuideFavoriteRepository={pendingFavoriteRepository()}
+      />,
+    );
 
     selectGangneungRegion();
     fireEvent.press(screen.getByLabelText("시·도 선택 드롭다운"));
@@ -81,7 +105,7 @@ describe("RegionalGuideScreen", () => {
     fireEvent.press(screen.getByText("조회"));
 
     await waitFor(() => {
-      expect(screen.getByText("API 검증 성공")).toBeOnTheScreen();
+      expect(screen.getByText("배출 안내")).toBeOnTheScreen();
     });
     expect(
       screen.getByText(/강릉시 > 강남동 · 생활폐기물 월/),
@@ -92,7 +116,7 @@ describe("RegionalGuideScreen", () => {
     );
   });
 
-  it("API 결과 없음과 네트워크 오류를 각각 표시한다", async () => {
+  it("API 결과 없음과 네트워크 오류를 문구로 구분한다", async () => {
     const notFoundClient: RegionalGuideApiClient = {
       fetchRegionalDisposalGuides: jest.fn().mockResolvedValue({
         status: "not-found",
@@ -122,7 +146,131 @@ describe("RegionalGuideScreen", () => {
     fireEvent.press(screen.getByText("조회"));
     await waitFor(() => {
       expect(
-        screen.getByText("API 검증 실패: 네트워크 오류"),
+        screen.getByText("네트워크 오류가 발생했습니다."),
+      ).toBeOnTheScreen();
+    });
+    expect(
+      screen.getByLabelText("지역별 배출 안내 다시 조회"),
+    ).toBeOnTheScreen();
+  });
+
+  it("조회 중 상태와 선택 지역 안내 미제공 상태를 구분한다", async () => {
+    const request = deferredApiResult();
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest.fn(() => request.promise),
+    };
+    render(<RegionalGuideScreen regionalGuideApiClient={client} />);
+
+    selectGangneungRegion();
+    fireEvent.press(screen.getByText("조회"));
+    expect(screen.getByLabelText("지역별 배출 안내 조회 중")).toBeOnTheScreen();
+
+    await act(async () => {
+      request.resolve({
+        status: "success",
+        guides: [{ targetRegionName: "교1동", schedules: [] }],
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("선택 지역 배출 안내 미제공"),
+      ).toBeOnTheScreen();
+    });
+  });
+
+  it.each([
+    ["api" as const, "배출 안내 API 오류가 발생했습니다."],
+    ["configuration" as const, "API 설정이 필요합니다."],
+  ])("%s 오류 상태를 구분해 표시한다", async (reason, expectedMessage) => {
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest.fn().mockResolvedValue({
+        status: "failure",
+        reason,
+      }),
+    };
+    render(<RegionalGuideScreen regionalGuideApiClient={client} />);
+
+    selectGangneungRegion();
+    fireEvent.press(screen.getByText("조회"));
+
+    await waitFor(() => {
+      expect(screen.getByText(expectedMessage)).toBeOnTheScreen();
+    });
+  });
+
+  it("네트워크 오류 후 같은 지역을 다시 조회한다", async () => {
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest
+        .fn()
+        .mockResolvedValueOnce({ status: "failure", reason: "network" })
+        .mockResolvedValueOnce({
+          status: "success",
+          guides: [gangneungGuide()],
+        }),
+    };
+    render(<RegionalGuideScreen regionalGuideApiClient={client} />);
+
+    selectGangneungRegion();
+    fireEvent.press(screen.getByText("조회"));
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("지역별 배출 안내 다시 조회"),
+      ).toBeOnTheScreen();
+    });
+
+    fireEvent.press(screen.getByLabelText("지역별 배출 안내 다시 조회"));
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("지역별 배출 안내 조회 성공"),
+      ).toBeOnTheScreen();
+    });
+    expect(client.fetchRegionalDisposalGuides).toHaveBeenCalledTimes(2);
+  });
+
+  it("안정된 식별자로 즐겨찾기를 추가하고 해제한다", async () => {
+    const favoriteRepository = resolvedFavoriteRepository([]);
+    render(
+      <RegionalGuideScreen
+        regionalGuideApiClient={successfulApiClient()}
+        regionalGuideFavoriteRepository={favoriteRepository}
+      />,
+    );
+
+    selectGangneungRegion();
+    fireEvent.press(screen.getByText("조회"));
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("지역 가이드 즐겨찾기 추가"),
+      ).toBeOnTheScreen();
+    });
+
+    fireEvent.press(screen.getByLabelText("지역 가이드 즐겨찾기 추가"));
+    await waitFor(() => expect(favoriteRepository.save).toHaveBeenCalled());
+    const storedGuideId = favoriteRepository.save.mock.calls[0][0][0];
+    expect(storedGuideId).toMatch(/^regional-guide:v1:/);
+    expect(storedGuideId).not.toBe("강남동");
+
+    fireEvent.press(screen.getByLabelText("지역 가이드 즐겨찾기 해제"));
+    await waitFor(() =>
+      expect(favoriteRepository.save).toHaveBeenLastCalledWith([]),
+    );
+  });
+
+  it("앱 시작 시 복원한 즐겨찾기 상태를 결과 UI에 표시한다", async () => {
+    const favoriteRepository = resolvedFavoriteRepository([gangneungGuideId()]);
+    render(
+      <RegionalGuideScreen
+        regionalGuideApiClient={successfulApiClient()}
+        regionalGuideFavoriteRepository={favoriteRepository}
+      />,
+    );
+
+    selectGangneungRegion();
+    fireEvent.press(screen.getByText("조회"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("지역 가이드 즐겨찾기 해제"),
       ).toBeOnTheScreen();
     });
   });
@@ -240,6 +388,64 @@ function pendingApiClient(): RegionalGuideApiClient {
   return {
     fetchRegionalDisposalGuides: jest.fn(() => new Promise(() => undefined)),
   };
+}
+
+function successfulApiClient(): RegionalGuideApiClient {
+  return {
+    fetchRegionalDisposalGuides: jest.fn().mockResolvedValue({
+      status: "success",
+      guides: [gangneungGuide()],
+    }),
+  };
+}
+
+function gangneungGuide() {
+  return {
+    sidoName: "강원특별자치도",
+    sigunguName: "강릉시",
+    targetRegionName: "강남동",
+    schedules: [{ wasteType: "general" as const, disposalDays: "월" }],
+  };
+}
+
+function gangneungGuideId() {
+  const sido = findRegions("sido").find(
+    (region) => region.name === "강원특별자치도",
+  );
+  const sigungu = findRegions("sigungu", sido?.id).find(
+    (region) => region.name === "강릉시",
+  );
+  const eupmyeondong = findRegions("eupmyeondong", sigungu?.id).find(
+    (region) => region.name === "강남동",
+  );
+  const guideId = createRegionalGuideId({ sido, sigungu, eupmyeondong });
+  if (!guideId)
+    throw new Error("강릉시 강남동 가이드 식별자를 찾지 못했습니다.");
+  return guideId;
+}
+
+function resolvedFavoriteRepository(
+  guideIds: ReturnType<typeof gangneungGuideId>[],
+) {
+  return {
+    restore: jest.fn().mockResolvedValue(guideIds),
+    save: jest.fn().mockResolvedValue(undefined),
+  } satisfies jest.Mocked<RegionalGuideFavoriteRepository>;
+}
+
+function pendingFavoriteRepository(): RegionalGuideFavoriteRepository {
+  return {
+    restore: jest.fn(() => new Promise(() => undefined)),
+    save: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
+function deferredApiResult() {
+  let resolve!: (result: RegionalGuideLookupResult) => void;
+  const promise = new Promise<RegionalGuideLookupResult>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
 }
 
 function selectGangneungRegion() {

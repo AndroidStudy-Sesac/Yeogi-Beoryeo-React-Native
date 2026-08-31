@@ -22,10 +22,10 @@ describe("useRegionalGuideApiValidation", () => {
     const { result } = renderHook(() => useRegionalGuideApiValidation(client));
 
     await act(async () => {
-      void result.current.validate("제주시");
+      void result.current.validate({ sigunguName: "제주시" });
     });
     await act(async () => {
-      await result.current.validate("서귀포시");
+      await result.current.validate({ sigunguName: "서귀포시" });
     });
 
     expect(firstRequestSignal?.aborted).toBe(true);
@@ -44,9 +44,54 @@ describe("useRegionalGuideApiValidation", () => {
     const { result } = renderHook(() => useRegionalGuideApiValidation(client));
 
     await act(async () => {
-      await result.current.validate("제주시");
+      await result.current.validate({ sigunguName: "제주시" });
     });
 
     expect(result.current.state).toEqual({ status: "idle" });
+  });
+
+  it("조회 결과에 선택한 읍면동 안내가 없으면 미제공 상태로 구분한다", async () => {
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest.fn().mockResolvedValue({
+        status: "success",
+        guides: [{ targetRegionName: "연동", schedules: [] }],
+      }),
+    };
+    const { result } = renderHook(() => useRegionalGuideApiValidation(client));
+
+    await act(async () => {
+      await result.current.validate({
+        sigunguName: "제주시",
+        eupmyeondongName: "노형동",
+      });
+    });
+
+    expect(result.current.state).toEqual({ status: "not-provided" });
+  });
+
+  it("실패한 마지막 조회 조건으로 다시 조회한다", async () => {
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest
+        .fn()
+        .mockResolvedValueOnce({ status: "failure", reason: "network" })
+        .mockResolvedValueOnce({
+          status: "success",
+          guides: [{ targetRegionName: "동지역", schedules: [] }],
+        }),
+    };
+    const { result } = renderHook(() => useRegionalGuideApiValidation(client));
+
+    await act(async () => {
+      await result.current.validate({
+        sigunguName: "제주시",
+        eupmyeondongName: "노형동",
+      });
+    });
+    await act(async () => {
+      await result.current.retry();
+    });
+
+    expect(result.current.state.status).toBe("success");
+    expect(client.fetchRegionalDisposalGuides).toHaveBeenCalledTimes(2);
   });
 });
