@@ -8,8 +8,7 @@ interface RegionalGuideRegionAssetItem {
   sigunguName: string;
 }
 
-interface RegionalGuideAvailabilityAssetItem
-  extends RegionalGuideRegionAssetItem {
+interface RegionalGuideAvailabilityAssetItem extends RegionalGuideRegionAssetItem {
   managementZoneName: string;
   targetRegionName: string;
 }
@@ -57,11 +56,23 @@ export function createRegionAssetLoadResult(
   );
   const sidoRegions = distinctBy(scopes, (scope) => scope.sidoName)
     .sort(byName((scope) => scope.sidoName))
-    .map((scope) => toRegion("sido", scope.sidoName));
+    .map((scope) =>
+      toRegion(
+        "sido",
+        scope.sidoName,
+        undefined,
+        sidoId(scope.sidoName, administrativeRegions.items),
+      ),
+    );
   const sigunguRegions = scopes
     .sort(byScope)
     .map((scope) =>
-      toRegion("sigungu", scope.sigunguName, sidoId(scope.sidoName)),
+      toRegion(
+        "sigungu",
+        scope.sigunguName,
+        sidoId(scope.sidoName, administrativeRegions.items),
+        sigunguId(scope, administrativeRegions.items),
+      ),
     );
   const eupmyeondongRegions = scopes.flatMap((scope) => {
     const administrationInScope = administrativeRegions.items.filter((region) =>
@@ -87,7 +98,12 @@ export function createRegionAssetLoadResult(
     )
       .sort(byName((region) => region.eupmyeondongName))
       .map((region) =>
-        toRegion("eupmyeondong", region.eupmyeondongName, sigunguId(scope)),
+        toRegion(
+          "eupmyeondong",
+          region.eupmyeondongName,
+          sigunguId(scope, administrativeRegions.items),
+          `eupmyeondong:${region.adminCode}`,
+        ),
       );
   });
 
@@ -145,7 +161,9 @@ function parseAdministrativeRegions(
   return parseAsset(asset, (item) => {
     const adminCode = readRequiredString(item, "adminCode");
     const sidoName = readRequiredString(item, "sidoName");
-    const sigunguName = readRequiredString(item, "sigunguName");
+    const sigunguName =
+      readRequiredString(item, "sigunguName") ??
+      (sidoName === "세종특별자치시" ? "없음" : undefined);
     const eupmyeondongName = readRequiredString(item, "eupmyeondongName");
     return adminCode && sidoName && sigunguName && eupmyeondongName
       ? { adminCode, sidoName, sigunguName, eupmyeondongName }
@@ -251,16 +269,34 @@ function scopeKey(region: RegionalGuideRegionAssetItem): string {
   return `${region.sidoName}:${normalizeSigungu(region.sigunguName)}`;
 }
 
-function sidoId(sidoName: string): string {
-  return `sido:${sidoName}`;
+function sidoId(
+  sidoName: string,
+  administrativeRegions: AdministrativeRegionAssetItem[],
+): string {
+  const adminCode = administrativeRegions.find(
+    (region) => region.sidoName === sidoName,
+  )?.adminCode;
+  return adminCode ? `sido:${adminCode.slice(0, 2)}` : `sido:${sidoName}`;
 }
 
-function sigunguId(region: RegionalGuideRegionAssetItem): string {
-  return `sigungu:${sidoId(region.sidoName)}:${region.sigunguName}`;
+function sigunguId(
+  scope: RegionalGuideRegionAssetItem,
+  administrativeRegions: AdministrativeRegionAssetItem[],
+): string {
+  const adminCode = administrativeRegions.find((region) =>
+    isSameScope(scope, region),
+  )?.adminCode;
+  return adminCode
+    ? `sigungu:${adminCode.slice(0, 5)}`
+    : `sigungu:${sidoId(scope.sidoName, administrativeRegions)}:${scope.sigunguName}`;
 }
 
-function toRegion(level: RegionLevel, name: string, parentId?: string): Region {
-  const id = level === "sido" ? sidoId(name) : `${level}:${parentId}:${name}`;
+function toRegion(
+  level: RegionLevel,
+  name: string,
+  parentId: string | undefined,
+  id: string,
+): Region {
   return { id, name, level, parentId };
 }
 
