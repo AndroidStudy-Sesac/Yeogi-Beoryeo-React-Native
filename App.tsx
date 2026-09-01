@@ -14,6 +14,7 @@ import {
 import {
   NaverMapMarkerOverlay,
   NaverMapView,
+  type MarkerSymbol,
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import { StatusBar } from 'expo-status-bar';
@@ -77,7 +78,11 @@ type NearbySearchStatus =
   | 'location-unavailable'
   | GetSpotSearchResult['status'];
 
-type ActiveSpotResultSource = 'district' | 'nearby';
+type ActiveSpotResultSource = 'district' | 'nearby' | 'sample';
+
+type MappableCollectionSpot = CollectionSpot & {
+  coordinate: NonNullable<CollectionSpot['coordinate']>;
+};
 
 const permissionLabels: Record<LocationPermissionStatus, string> = {
   unknown: '권한 미확인',
@@ -141,6 +146,104 @@ const spotTypeLabels: Record<CollectionSpot['type'], string> = {
   HAZARDOUS_WASTE_BIN: '유해폐기물',
   OTHER: '기타',
 };
+
+const spotMarkerSymbols: Record<CollectionSpot['type'], MarkerSymbol> = {
+  SMALL_E_WASTE_BIN: 'green',
+  BATTERY_BIN: 'yellow',
+  PHONE_DROP_OFF: 'lightblue',
+  RECYCLING_CENTER: 'blue',
+  STANDARD_BAG_STORE: 'gray',
+  MEDICINE_DROP_BOX: 'pink',
+  FLUORESCENT_LAMP_BIN: 'yellow',
+  CLOTHING_BIN: 'green',
+  ICE_PACK_BIN: 'lightblue',
+  WASTE_COOKING_OIL_BIN: 'blue',
+  HAZARDOUS_WASTE_BIN: 'red',
+  OTHER: 'gray',
+};
+
+const SPIKE_MARKER_SAMPLE_SPOTS: CollectionSpot[] = [
+  {
+    id: 'spike-sample-clothing-city-hall',
+    name: '시청역 의류 수거함',
+    type: 'CLOTHING_BIN',
+    address: '서울특별시 중구 세종대로 110',
+    detailLocation: '시청역 5번 출구 인근',
+    coordinate: {
+      latitude: 37.5668,
+      longitude: 126.9786,
+    },
+    distanceMeter: null,
+    isBookmarked: false,
+  },
+  {
+    id: 'spike-sample-battery-mugyo',
+    name: '무교동 폐건전지 수거함',
+    type: 'BATTERY_BIN',
+    address: '서울특별시 중구 무교로 21',
+    detailLocation: '주민센터 입구',
+    coordinate: {
+      latitude: 37.5685,
+      longitude: 126.9781,
+    },
+    distanceMeter: null,
+    isBookmarked: false,
+  },
+  {
+    id: 'spike-sample-bag-gangnam',
+    name: '강남역 종량제 봉투 판매소',
+    type: 'STANDARD_BAG_STORE',
+    address: '서울특별시 강남구 강남대로 396',
+    detailLocation: '강남역 11번 출구 편의점',
+    coordinate: {
+      latitude: 37.4984,
+      longitude: 127.0278,
+    },
+    distanceMeter: null,
+    isBookmarked: false,
+  },
+  {
+    id: 'spike-sample-medicine-gangnam',
+    name: '역삼동 폐의약품 수거함',
+    type: 'MEDICINE_DROP_BOX',
+    address: '서울특별시 강남구 테헤란로 152',
+    detailLocation: '약국 내부',
+    coordinate: {
+      latitude: 37.5003,
+      longitude: 127.0362,
+    },
+    distanceMeter: null,
+    isBookmarked: false,
+  },
+  {
+    id: 'spike-sample-list-only',
+    name: '좌표 없는 수거 장소 샘플',
+    type: 'OTHER',
+    address: '서울특별시 중구 좌표없는길 1',
+    detailLocation: 'list-only fallback 검증용',
+    coordinate: null,
+    distanceMeter: null,
+    isBookmarked: false,
+  },
+];
+
+const isValidCoordinate = (
+  coordinate: CollectionSpot['coordinate']
+): coordinate is MappableCollectionSpot['coordinate'] =>
+  coordinate !== null &&
+  Number.isFinite(coordinate.latitude) &&
+  Number.isFinite(coordinate.longitude) &&
+  coordinate.latitude >= -90 &&
+  coordinate.latitude <= 90 &&
+  coordinate.longitude >= -180 &&
+  coordinate.longitude <= 180;
+
+const getMappableSpots = (
+  spots: CollectionSpot[]
+): MappableCollectionSpot[] =>
+  spots.filter(
+    (spot): spot is MappableCollectionSpot => isValidCoordinate(spot.coordinate)
+  );
 
 const mapPermission = (
   response: Location.LocationPermissionResponse
@@ -242,6 +345,16 @@ export default function App() {
   const [activeSpotResultSource, setActiveSpotResultSource] =
     useState<ActiveSpotResultSource | null>(null);
   const [isSpotSearchPartial, setIsSpotSearchPartial] = useState(false);
+  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
+
+  const mappableSpotResults = useMemo(
+    () => getMappableSpots(spotSearchResults),
+    [spotSearchResults]
+  );
+  const selectedSpot = useMemo(
+    () => spotSearchResults.find((spot) => spot.id === selectedSpotId) ?? null,
+    [selectedSpotId, spotSearchResults]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -293,6 +406,11 @@ export default function App() {
       duration: 700,
       easing: 'EaseOut',
     });
+  };
+
+  const selectSpotMarker = (spot: MappableCollectionSpot) => {
+    setSelectedSpotId(spot.id);
+    moveToCoordinate(spot.coordinate);
   };
 
   const requestCurrentLocation = async () => {
@@ -378,6 +496,7 @@ export default function App() {
       setSpotSearchResultCount(0);
       setActiveSpotResultSource(null);
       setIsSpotSearchPartial(false);
+      setSelectedSpotId(null);
       return;
     }
 
@@ -395,6 +514,7 @@ export default function App() {
     setSpotSearchResults([]);
     setSpotSearchResultCount(0);
     setIsSpotSearchPartial(false);
+    setSelectedSpotId(null);
 
     const result = await getSpotClient.searchByAddress({
       address: normalizedKeyword,
@@ -444,6 +564,7 @@ export default function App() {
     setSpotSearchResults([]);
     setSpotSearchResultCount(0);
     setIsSpotSearchPartial(false);
+    setSelectedSpotId(null);
 
     const result = await getSpotClient.searchByLocation({
       latitude: coordinate.latitude,
@@ -479,6 +600,27 @@ export default function App() {
     setNearbySearchMessage(result.message);
   };
 
+  const loadMarkerSamples = () => {
+    searchAbortControllerRef.current?.abort();
+    searchAbortControllerRef.current = null;
+    searchRequestIdRef.current += 1;
+    setActiveSpotResultSource('sample');
+    setDistrictSearchStatus('success');
+    setDistrictSearchMessage('마커 선택 검증용 Spike 샘플을 표시했습니다.');
+    setNearbySearchStatus('idle');
+    setNearbySearchMessage(null);
+    setSpotSearchResults(SPIKE_MARKER_SAMPLE_SPOTS);
+    setSpotSearchResultCount(SPIKE_MARKER_SAMPLE_SPOTS.length);
+    setIsSpotSearchPartial(false);
+    setSelectedSpotId(null);
+
+    const firstMappableSampleSpot = getMappableSpots(SPIKE_MARKER_SAMPLE_SPOTS)[0];
+
+    if (firstMappableSampleSpot) {
+      moveToCoordinate(firstMappableSampleSpot.coordinate);
+    }
+  };
+
   const retryDistrictSearch = () => {
     if (lastSearchedDistrict) {
       searchDistrict(lastSearchedDistrict);
@@ -497,7 +639,13 @@ export default function App() {
       ? `${lastSearchedDistrict} 검색 결과`
       : activeSpotResultSource === 'nearby'
         ? `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 검색 결과`
-        : null;
+        : activeSpotResultSource === 'sample'
+          ? '마커 선택 Spike 샘플'
+          : null;
+  const hiddenSpotCount = Math.max(
+    spotSearchResults.length - mappableSpotResults.length,
+    0
+  );
 
   return (
     <View style={styles.container}>
@@ -520,7 +668,24 @@ export default function App() {
             `${latitude.toFixed(4)}, ${longitude.toFixed(4)} / z${safeZoom.toFixed(1)}`
           );
         }}
+        onTapMap={() => setSelectedSpotId(null)}
       >
+        {currentCoordinate && (
+          <NaverMapMarkerOverlay
+            latitude={currentCoordinate.latitude}
+            longitude={currentCoordinate.longitude}
+            width={34}
+            height={42}
+            zIndex={900}
+            image={{ symbol: 'black' }}
+            caption={{
+              text: '현재 위치',
+              color: '#12312A',
+              haloColor: '#FFFFFF',
+              textSize: 12,
+            }}
+          />
+        )}
         <NaverMapMarkerOverlay
           latitude={SEOUL_CITY_HALL.latitude}
           longitude={SEOUL_CITY_HALL.longitude}
@@ -533,6 +698,45 @@ export default function App() {
           caption={{ text: GANGNAM_STATION.label }}
           image={{ symbol: 'blue' }}
         />
+        {mappableSpotResults.map((spot) => {
+          const isSelected = spot.id === selectedSpotId;
+
+          return (
+            <NaverMapMarkerOverlay
+              key={spot.id}
+              latitude={spot.coordinate.latitude}
+              longitude={spot.coordinate.longitude}
+              width={isSelected ? 42 : 32}
+              height={isSelected ? 52 : 40}
+              zIndex={isSelected ? 1000 : 500}
+              image={{
+                symbol: isSelected ? 'red' : spotMarkerSymbols[spot.type],
+              }}
+              caption={{
+                text: isSelected ? spot.name : spotTypeLabels[spot.type],
+                requestedWidth: isSelected ? 180 : 96,
+                color: isSelected ? '#991B1B' : '#12312A',
+                haloColor: '#FFFFFF',
+                textSize: isSelected ? 13 : 11,
+                minZoom: isSelected ? 0 : 15,
+              }}
+              subCaption={
+                isSelected
+                  ? {
+                    text: spot.address,
+                    requestedWidth: 180,
+                    color: '#4F635D',
+                    haloColor: '#FFFFFF',
+                    textSize: 10,
+                  }
+                  : undefined
+              }
+              isHideCollidedCaptions={!isSelected}
+              isForceShowIcon={isSelected}
+              onTap={() => selectSpotMarker(spot)}
+            />
+          );
+        })}
       </NaverMapView>
 
       <View pointerEvents="box-none" style={styles.overlay}>
@@ -607,6 +811,27 @@ export default function App() {
             </View>
             {districtSearchMessage && (
               <Text style={styles.searchMessage}>{districtSearchMessage}</Text>
+            )}
+            {spotSearchResults.length > 0 && (
+              <Text style={styles.searchMessage}>
+                지도 마커: {mappableSpotResults.length}/{spotSearchResults.length}
+              </Text>
+            )}
+            {hiddenSpotCount > 0 && (
+              <Text style={styles.searchMessage}>
+                좌표 없는 {hiddenSpotCount}건은 리스트에만 표시됩니다.
+              </Text>
+            )}
+            {selectedSpot && (
+              <View style={styles.selectedSpotPanel}>
+                <Text style={styles.selectedSpotLabel}>선택 마커</Text>
+                <Text numberOfLines={1} style={styles.selectedSpotName}>
+                  {selectedSpot.name}
+                </Text>
+                <Text numberOfLines={1} style={styles.selectedSpotAddress}>
+                  {selectedSpot.address}
+                </Text>
+              </View>
             )}
             {isSpotSearchPartial && (
               <Text style={styles.searchMessage}>
@@ -684,6 +909,13 @@ export default function App() {
             onPress={() => moveCamera(GANGNAM_STATION)}
           >
             <Text style={styles.secondaryButtonText}>강남역</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.secondaryButton}
+            onPress={loadMarkerSamples}
+          >
+            <Text style={styles.secondaryButtonText}>마커 샘플</Text>
           </Pressable>
           {permissionStatus === 'blocked' && (
             <Pressable
@@ -870,6 +1102,28 @@ const styles = StyleSheet.create({
   resultDetail: {
     marginTop: 2,
     color: '#60736D',
+    fontSize: 12,
+  },
+  selectedSpotPanel: {
+    borderTopColor: '#D8E2DC',
+    borderTopWidth: 1,
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  selectedSpotLabel: {
+    color: '#991B1B',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  selectedSpotName: {
+    marginTop: 2,
+    color: '#12312A',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  selectedSpotAddress: {
+    marginTop: 2,
+    color: '#4F635D',
     fontSize: 12,
   },
   actions: {
