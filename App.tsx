@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import {
   Alert,
@@ -337,7 +337,7 @@ export default function App() {
   const getSpotClient = useMemo(() => createGetSpotClient(), []);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
-  const bottomSheetDragY = useRef(new Animated.Value(0)).current;
+  const [bottomSheetDragY] = useState(() => new Animated.Value(0));
   const [cameraLabel, setCameraLabel] = useState('37.5666, 126.9784 / z15.0');
   const [permissionStatus, setPermissionStatus] =
     useState<LocationPermissionStatus>('unknown');
@@ -438,14 +438,14 @@ export default function App() {
     });
   };
 
-  const resetBottomSheetDrag = () => {
+  const resetBottomSheetDrag = useCallback(() => {
     Animated.spring(bottomSheetDragY, {
       toValue: 0,
       useNativeDriver: true,
       tension: 80,
       friction: 12,
     }).start();
-  };
+  }, [bottomSheetDragY]);
 
   const changeBottomSheetSnapPoint = (nextSnapPoint: BottomSheetSnapPoint) => {
     Keyboard.dismiss();
@@ -491,7 +491,7 @@ export default function App() {
         },
         onPanResponderTerminate: resetBottomSheetDrag,
       }),
-    [bottomSheetDragY, bottomSheetSnapPoint]
+    [bottomSheetDragY, bottomSheetSnapPoint, resetBottomSheetDrag]
   );
 
   const requestCurrentLocation = async () => {
@@ -739,11 +739,15 @@ export default function App() {
     0
   );
   const bottomSheetHeight = bottomSheetHeights[bottomSheetSnapPoint];
-  const bottomSheetTranslateY = bottomSheetDragY.interpolate({
-    inputRange: [-90, 0, 90],
-    outputRange: [-32, 0, 58],
-    extrapolate: 'clamp',
-  });
+  const bottomSheetTranslateY = useMemo(
+    () =>
+      bottomSheetDragY.interpolate({
+        inputRange: [-90, 0, 90],
+        outputRange: [-32, 0, 58],
+        extrapolate: 'clamp',
+      }),
+    [bottomSheetDragY]
+  );
   const sheetTitle = selectedSpot
     ? '선택 장소'
     : resultSourceLabel ?? '검색 결과';
