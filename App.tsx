@@ -388,15 +388,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (
-      selectedSpotId &&
-      !spotSearchResults.some((spot) => spot.id === selectedSpotId)
-    ) {
-      setSelectedSpotId(null);
-    }
-  }, [selectedSpotId, spotSearchResults]);
-
   const moveCamera = (target: typeof SEOUL_CITY_HALL) => {
     mapRef.current?.animateCameraTo({
       latitude: target.latitude,
