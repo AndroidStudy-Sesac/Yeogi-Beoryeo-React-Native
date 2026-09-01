@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Location from 'expo-location';
 import {
   Alert,
+  Animated,
+  Keyboard,
   Linking,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -83,6 +87,8 @@ type ActiveSpotResultSource = 'district' | 'nearby' | 'sample';
 type MappableCollectionSpot = CollectionSpot & {
   coordinate: NonNullable<CollectionSpot['coordinate']>;
 };
+
+type BottomSheetSnapPoint = 'collapsed' | 'half' | 'expanded';
 
 const permissionLabels: Record<LocationPermissionStatus, string> = {
   unknown: '권한 미확인',
@@ -161,6 +167,18 @@ const spotMarkerSymbols: Record<CollectionSpot['type'], MarkerSymbol> = {
   HAZARDOUS_WASTE_BIN: 'red',
   OTHER: 'gray',
 };
+
+const bottomSheetSnapLabels: Record<BottomSheetSnapPoint, string> = {
+  collapsed: '요약',
+  half: '중간',
+  expanded: '확장',
+};
+
+const bottomSheetSnapOrder: BottomSheetSnapPoint[] = [
+  'collapsed',
+  'half',
+  'expanded',
+];
 
 const SPIKE_MARKER_SAMPLE_SPOTS: CollectionSpot[] = [
   {
@@ -314,10 +332,12 @@ const describePermissionDetails = (
 };
 
 export default function App() {
+  const { height: windowHeight } = useWindowDimensions();
   const mapRef = useRef<NaverMapViewRef>(null);
   const getSpotClient = useMemo(() => createGetSpotClient(), []);
   const searchAbortControllerRef = useRef<AbortController | null>(null);
   const searchRequestIdRef = useRef(0);
+  const [bottomSheetDragY] = useState(() => new Animated.Value(0));
   const [cameraLabel, setCameraLabel] = useState('37.5666, 126.9784 / z15.0');
   const [permissionStatus, setPermissionStatus] =
     useState<LocationPermissionStatus>('unknown');
@@ -346,7 +366,17 @@ export default function App() {
     useState<ActiveSpotResultSource | null>(null);
   const [isSpotSearchPartial, setIsSpotSearchPartial] = useState(false);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
+  const [bottomSheetSnapPoint, setBottomSheetSnapPoint] =
+    useState<BottomSheetSnapPoint>('half');
 
+  const bottomSheetHeights = useMemo(
+    () => ({
+      collapsed: 148,
+      half: Math.min(Math.max(windowHeight * 0.42, 300), 420),
+      expanded: Math.min(Math.max(windowHeight * 0.72, 520), windowHeight - 118),
+    }),
+    [windowHeight]
+  );
   const mappableSpotResults = useMemo(
     () => getMappableSpots(spotSearchResults),
     [spotSearchResults]
@@ -408,10 +438,61 @@ export default function App() {
     });
   };
 
-  const selectSpotMarker = (spot: MappableCollectionSpot) => {
-    setSelectedSpotId(spot.id);
-    moveToCoordinate(spot.coordinate);
+  const resetBottomSheetDrag = useCallback(() => {
+    Animated.spring(bottomSheetDragY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 12,
+    }).start();
+  }, [bottomSheetDragY]);
+
+  const changeBottomSheetSnapPoint = (nextSnapPoint: BottomSheetSnapPoint) => {
+    Keyboard.dismiss();
+    setBottomSheetSnapPoint(nextSnapPoint);
+    resetBottomSheetDrag();
   };
+
+  const selectSpot = (spot: CollectionSpot) => {
+    setSelectedSpotId(spot.id);
+    changeBottomSheetSnapPoint('half');
+
+    if (isValidCoordinate(spot.coordinate)) {
+      moveToCoordinate(spot.coordinate);
+    }
+  };
+
+  const bottomSheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > 8 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderGrant: () => {
+          Keyboard.dismiss();
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const limitedDy = Math.max(-90, Math.min(90, gestureState.dy));
+
+          bottomSheetDragY.setValue(limitedDy);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const currentIndex =
+            bottomSheetSnapOrder.indexOf(bottomSheetSnapPoint);
+          const nextIndex =
+            gestureState.dy > 48 || gestureState.vy > 0.7
+              ? Math.max(currentIndex - 1, 0)
+              : gestureState.dy < -48 || gestureState.vy < -0.7
+                ? Math.min(currentIndex + 1, bottomSheetSnapOrder.length - 1)
+                : currentIndex;
+
+          setBottomSheetSnapPoint(bottomSheetSnapOrder[nextIndex]);
+          resetBottomSheetDrag();
+        },
+        onPanResponderTerminate: resetBottomSheetDrag,
+      }),
+    [bottomSheetDragY, bottomSheetSnapPoint, resetBottomSheetDrag]
+  );
 
   const requestCurrentLocation = async () => {
     try {
@@ -511,6 +592,7 @@ export default function App() {
     setActiveSpotResultSource('district');
     setDistrictSearchStatus('loading');
     setDistrictSearchMessage(`${normalizedKeyword} 검색 중`);
+    changeBottomSheetSnapPoint('collapsed');
     setSpotSearchResults([]);
     setSpotSearchResultCount(0);
     setIsSpotSearchPartial(false);
@@ -532,6 +614,7 @@ export default function App() {
       setSpotSearchResults(result.spots);
       setSpotSearchResultCount(result.spots.length);
       setIsSpotSearchPartial(result.isPartial);
+      changeBottomSheetSnapPoint('half');
       setDistrictSearchMessage(
         result.status === 'empty'
           ? `${normalizedKeyword} 검색 결과가 없습니다.`
@@ -561,6 +644,7 @@ export default function App() {
     setNearbySearchMessage(
       `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 검색 중`
     );
+    changeBottomSheetSnapPoint('collapsed');
     setSpotSearchResults([]);
     setSpotSearchResultCount(0);
     setIsSpotSearchPartial(false);
@@ -584,6 +668,7 @@ export default function App() {
       setSpotSearchResults(result.spots);
       setSpotSearchResultCount(result.spots.length);
       setIsSpotSearchPartial(result.isPartial);
+      changeBottomSheetSnapPoint('half');
       setNearbySearchMessage(
         result.status === 'empty'
           ? `현재 위치 반경 ${NEARBY_SEARCH_RADIUS_METER}m 검색 결과가 없습니다.`
@@ -613,6 +698,7 @@ export default function App() {
     setSpotSearchResultCount(SPIKE_MARKER_SAMPLE_SPOTS.length);
     setIsSpotSearchPartial(false);
     setSelectedSpotId(null);
+    changeBottomSheetSnapPoint('half');
 
     const firstMappableSampleSpot = getMappableSpots(SPIKE_MARKER_SAMPLE_SPOTS)[0];
 
@@ -642,10 +728,30 @@ export default function App() {
         : activeSpotResultSource === 'sample'
           ? '마커 선택 Spike 샘플'
           : null;
+  const spotSearchStatusLabel =
+    activeSpotResultSource === 'nearby'
+      ? nearbySearchLabels[nearbySearchStatus]
+      : activeSpotResultSource === 'sample'
+        ? '샘플 결과 표시 중'
+        : districtSearchLabels[districtSearchStatus];
   const hiddenSpotCount = Math.max(
     spotSearchResults.length - mappableSpotResults.length,
     0
   );
+  const bottomSheetHeight = bottomSheetHeights[bottomSheetSnapPoint];
+  const bottomSheetTranslateY = useMemo(
+    () =>
+      bottomSheetDragY.interpolate({
+        inputRange: [-90, 0, 90],
+        outputRange: [-32, 0, 58],
+        extrapolate: 'clamp',
+      }),
+    [bottomSheetDragY]
+  );
+  const sheetTitle = selectedSpot
+    ? '선택 장소'
+    : resultSourceLabel ?? '검색 결과';
+  const hasSearchResult = spotSearchResults.length > 0;
 
   return (
     <View style={styles.container}>
@@ -733,7 +839,7 @@ export default function App() {
               }
               isHideCollidedCaptions={!isSelected}
               isForceShowIcon={isSelected}
-              onTap={() => selectSpotMarker(spot)}
+              onTap={() => selectSpot(spot)}
             />
           );
         })}
@@ -823,19 +929,8 @@ export default function App() {
               </Text>
             )}
             {selectedSpot && (
-              <View style={styles.selectedSpotPanel}>
-                <Text style={styles.selectedSpotLabel}>선택 마커</Text>
-                <Text numberOfLines={1} style={styles.selectedSpotName}>
-                  {selectedSpot.name}
-                </Text>
-                <Text numberOfLines={1} style={styles.selectedSpotAddress}>
-                  {selectedSpot.address}
-                </Text>
-              </View>
-            )}
-            {isSpotSearchPartial && (
               <Text style={styles.searchMessage}>
-                일부 페이지 조회 실패로 확인된 결과만 표시 중
+                선택 장소: {selectedSpot.name}
               </Text>
             )}
             {canRetryDistrictSearch && (
@@ -847,24 +942,187 @@ export default function App() {
                 <Text style={styles.retryButtonText}>다시 검색</Text>
               </Pressable>
             )}
-            {spotSearchResults.length > 0 && (
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                style={styles.resultList}
+          </View>
+        </View>
+
+        <Animated.View
+          style={[
+            styles.bottomSheet,
+            {
+              height: bottomSheetHeight,
+              transform: [{ translateY: bottomSheetTranslateY }],
+            },
+          ]}
+        >
+          <View
+            accessibilityRole="adjustable"
+            accessibilityLabel="검색 결과 바텀시트"
+            style={styles.sheetDragArea}
+            {...bottomSheetPanResponder.panHandlers}
+          >
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeaderRow}>
+              <View style={styles.sheetTitleGroup}>
+                <Text style={styles.sheetTitle}>{sheetTitle}</Text>
+                <Text style={styles.sheetSubtitle}>
+                  {hasSearchResult
+                    ? `전체 ${spotSearchResults.length}건 / 지도 ${mappableSpotResults.length}건`
+                    : '검색 결과가 Sheet에 표시됩니다.'}
+                </Text>
+              </View>
+              <View style={styles.sheetSnapControls}>
+                {bottomSheetSnapOrder.map((snapPoint) => (
+                  <Pressable
+                    key={snapPoint}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      selected: bottomSheetSnapPoint === snapPoint,
+                    }}
+                    style={[
+                      styles.sheetSnapButton,
+                      bottomSheetSnapPoint === snapPoint &&
+                        styles.activeSheetSnapButton,
+                    ]}
+                    onPress={() => changeBottomSheetSnapPoint(snapPoint)}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetSnapButtonText,
+                        bottomSheetSnapPoint === snapPoint &&
+                          styles.activeSheetSnapButtonText,
+                      ]}
+                    >
+                      {bottomSheetSnapLabels[snapPoint]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            style={styles.sheetScroll}
+            contentContainerStyle={styles.sheetScrollContent}
+          >
+            <View style={styles.actions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isCurrentLocationActionRunning}
+                style={[
+                  styles.locationButton,
+                  isCurrentLocationActionRunning && styles.disabledButton,
+                ]}
+                onPress={requestCurrentLocation}
               >
-                {resultSourceLabel && (
-                  <Text style={styles.resultSourceText}>
-                    {resultSourceLabel}
+                <Text style={styles.locationButtonText}>
+                  {isCurrentLocationActionRunning ? '위치 검색 중' : '현재 위치'}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.primaryButton}
+                onPress={() => moveCamera(SEOUL_CITY_HALL)}
+              >
+                <Text style={styles.primaryButtonText}>서울시청</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.secondaryButton}
+                onPress={() => moveCamera(GANGNAM_STATION)}
+              >
+                <Text style={styles.secondaryButtonText}>강남역</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.secondaryButton}
+                onPress={loadMarkerSamples}
+              >
+                <Text style={styles.secondaryButtonText}>마커 샘플</Text>
+              </Pressable>
+              {permissionStatus === 'blocked' && (
+                <Pressable
+                  accessibilityRole="button"
+                  style={styles.settingsButton}
+                  onPress={openAppSettings}
+                >
+                  <Text style={styles.settingsButtonText}>설정</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {selectedSpot && (
+              <View style={styles.selectedSpotPanel}>
+                <Text style={styles.selectedSpotLabel}>선택 장소</Text>
+                <Text numberOfLines={1} style={styles.selectedSpotName}>
+                  {selectedSpot.name}
+                </Text>
+                <Text style={styles.selectedSpotType}>
+                  {spotTypeLabels[selectedSpot.type]}
+                  {isValidCoordinate(selectedSpot.coordinate)
+                    ? ' / 지도 이동 가능'
+                    : ' / 리스트 전용'}
+                </Text>
+                <Text numberOfLines={2} style={styles.selectedSpotAddress}>
+                  {selectedSpot.address}
+                </Text>
+                {selectedSpot.detailLocation && (
+                  <Text numberOfLines={2} style={styles.resultDetail}>
+                    {selectedSpot.detailLocation}
                   </Text>
                 )}
-                {spotSearchResults.slice(0, 8).map((spot) => (
-                  <View key={`${activeSpotResultSource}-${spot.id}`} style={styles.resultItem}>
+              </View>
+            )}
+
+            <View style={styles.sheetStatusPanel}>
+              <Text style={styles.sheetStatusText}>
+                검색 상태: {spotSearchStatusLabel}
+              </Text>
+              {resultSourceLabel && (
+                <Text style={styles.sheetStatusText}>{resultSourceLabel}</Text>
+              )}
+              {isSpotSearchPartial && (
+                <Text style={styles.sheetStatusText}>
+                  일부 페이지 조회 실패로 확인된 결과만 표시 중
+                </Text>
+              )}
+              {hiddenSpotCount > 0 && (
+                <Text style={styles.sheetStatusText}>
+                  좌표 없는 {hiddenSpotCount}건은 리스트에만 표시됩니다.
+                </Text>
+              )}
+            </View>
+
+            {hasSearchResult ? (
+              spotSearchResults.map((spot) => {
+                const isSelected = spot.id === selectedSpotId;
+                const canMoveToMap = isValidCoordinate(spot.coordinate);
+
+                return (
+                  <Pressable
+                    key={`${activeSpotResultSource}-${spot.id}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`${spot.name}, ${spotTypeLabels[spot.type]}, ${
+                      canMoveToMap ? '지도 이동 가능' : '리스트 전용'
+                    }`}
+                    style={[
+                      styles.resultItem,
+                      isSelected && styles.selectedResultItem,
+                    ]}
+                    onPress={() => selectSpot(spot)}
+                  >
                     <View style={styles.resultTitleRow}>
                       <Text numberOfLines={1} style={styles.resultName}>
                         {spot.name}
                       </Text>
-                      <Text style={styles.resultType}>
-                        {spotTypeLabels[spot.type]}
+                      <Text
+                        style={[
+                          styles.resultType,
+                          !canMoveToMap && styles.listOnlyResultType,
+                        ]}
+                      >
+                        {canMoveToMap ? spotTypeLabels[spot.type] : '리스트'}
                       </Text>
                     </View>
                     <Text numberOfLines={2} style={styles.resultAddress}>
@@ -875,58 +1133,16 @@ export default function App() {
                         {spot.detailLocation}
                       </Text>
                     )}
-                  </View>
-                ))}
-              </ScrollView>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <Text style={styles.emptySheetText}>
+                동/읍/면 검색, 현재 위치 검색, 마커 샘플 결과가 여기에 표시됩니다.
+              </Text>
             )}
-          </View>
-        </View>
-
-        <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={isCurrentLocationActionRunning}
-            style={[
-              styles.locationButton,
-              isCurrentLocationActionRunning && styles.disabledButton,
-            ]}
-            onPress={requestCurrentLocation}
-          >
-            <Text style={styles.locationButtonText}>
-              {isCurrentLocationActionRunning ? '위치 검색 중' : '현재 위치'}
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            style={styles.primaryButton}
-            onPress={() => moveCamera(SEOUL_CITY_HALL)}
-          >
-            <Text style={styles.primaryButtonText}>서울시청</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            style={styles.secondaryButton}
-            onPress={() => moveCamera(GANGNAM_STATION)}
-          >
-            <Text style={styles.secondaryButtonText}>강남역</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            style={styles.secondaryButton}
-            onPress={loadMarkerSamples}
-          >
-            <Text style={styles.secondaryButtonText}>마커 샘플</Text>
-          </Pressable>
-          {permissionStatus === 'blocked' && (
-            <Pressable
-              accessibilityRole="button"
-              style={styles.settingsButton}
-              onPress={openAppSettings}
-            >
-              <Text style={styles.settingsButtonText}>설정</Text>
-            </Pressable>
-          )}
-        </View>
+          </ScrollView>
+        </Animated.View>
       </View>
 
       <StatusBar style="auto" />
@@ -948,7 +1164,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    justifyContent: 'space-between',
     padding: 16,
     paddingTop: 48,
   },
@@ -1058,20 +1273,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  resultList: {
-    marginTop: 10,
-    maxHeight: 220,
-  },
-  resultSourceText: {
-    color: '#4F635D',
-    fontSize: 12,
-    fontWeight: '700',
-    paddingBottom: 6,
-  },
   resultItem: {
     borderTopColor: '#D8E2DC',
     borderTopWidth: 1,
     paddingVertical: 8,
+  },
+  selectedResultItem: {
+    backgroundColor: '#FEECEC',
+    borderRadius: 8,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
   },
   resultTitleRow: {
     alignItems: 'center',
@@ -1094,6 +1305,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  listOnlyResultType: {
+    backgroundColor: '#EEF2F1',
+    color: '#4F635D',
+  },
   resultAddress: {
     marginTop: 4,
     color: '#274A42',
@@ -1105,10 +1320,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   selectedSpotPanel: {
-    borderTopColor: '#D8E2DC',
-    borderTopWidth: 1,
-    marginTop: 8,
-    paddingTop: 8,
+    backgroundColor: '#FFF6F6',
+    borderColor: '#F0B8B8',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 12,
   },
   selectedSpotLabel: {
     color: '#991B1B',
@@ -1121,19 +1338,116 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  selectedSpotType: {
+    marginTop: 2,
+    color: '#991B1B',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   selectedSpotAddress: {
     marginTop: 2,
     color: '#4F635D',
     fontSize: 12,
   },
-  actions: {
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(247, 250, 248, 0.98)',
+    borderColor: '#D8E2DC',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  sheetDragArea: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
+  },
+  sheetHandle: {
     alignSelf: 'center',
+    width: 44,
+    height: 5,
+    backgroundColor: '#9FB2AA',
+    borderRadius: 3,
+    marginBottom: 10,
+  },
+  sheetHeaderRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  sheetTitleGroup: {
+    flex: 1,
+  },
+  sheetTitle: {
+    color: '#12312A',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  sheetSubtitle: {
+    marginTop: 2,
+    color: '#4F635D',
+    fontSize: 12,
+  },
+  sheetSnapControls: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  sheetSnapButton: {
+    minWidth: 44,
+    alignItems: 'center',
+    backgroundColor: '#EEF2F1',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  activeSheetSnapButton: {
+    backgroundColor: '#0F766E',
+  },
+  sheetSnapButtonText: {
+    color: '#4F635D',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  activeSheetSnapButtonText: {
+    color: '#FFFFFF',
+  },
+  sheetScroll: {
+    flex: 1,
+  },
+  sheetScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+  },
+  sheetStatusPanel: {
+    borderTopColor: '#D8E2DC',
+    borderTopWidth: 1,
+    marginTop: 12,
+    paddingTop: 10,
+  },
+  sheetStatusText: {
+    marginTop: 2,
+    color: '#4F635D',
+    fontSize: 12,
+  },
+  emptySheetText: {
+    borderTopColor: '#D8E2DC',
+    borderTopWidth: 1,
+    color: '#60736D',
+    fontSize: 13,
+    marginTop: 12,
+    paddingTop: 14,
+  },
+  actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
     justifyContent: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 12,
+    paddingTop: 2,
   },
   locationButton: {
     minWidth: 96,
