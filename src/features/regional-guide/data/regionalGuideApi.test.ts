@@ -3,17 +3,31 @@ import {
   createRegionalGuideApiClient,
   fetchRegionalDisposalGuides,
   mapRegionalGuideItem,
+  type RegionalGuideRecoveryPolicy,
 } from "./regionalGuideApi";
 
 const config = { serviceKey: "test-key" };
+const testPolicy: RegionalGuideRecoveryPolicy = {
+  pageTimeoutMs: 100,
+  totalTimeoutMs: 500,
+  maxPageCount: 5,
+};
 
 describe("지역별 배출 안내 API", () => {
+  afterEach(() => jest.useRealTimers());
+
   it("시군구 조건과 Android와 같은 요청 파라미터로 조회한다", async () => {
     const request = jest
       .fn()
-      .mockResolvedValue(jsonResponse(apiResponse([guideItem()])));
+      .mockResolvedValue(jsonResponse(apiResponse([guideItem()], 1)));
 
-    await fetchRegionalDisposalGuides("수원시", config, undefined, request);
+    await fetchRegionalDisposalGuides(
+      "수원시",
+      config,
+      undefined,
+      request,
+      testPolicy,
+    );
 
     const [url, options] = request.mock.calls[0] as [
       string,
@@ -23,7 +37,9 @@ describe("지역별 배출 안내 API", () => {
     expect(params.get("cond[SGG_NM::LIKE]")).toBe("수원시");
     expect(params.get("returnType")).toBe("json");
     expect(params.get("serviceKey")).toBe("test-key");
-    expect(options.signal).toBeUndefined();
+    expect(params.get("pageNo")).toBe("1");
+    expect(params.get("numOfRows")).toBe("100");
+    expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("일반·음식물·재활용 배출 정보를 공통 모델로 변환한다", () => {
@@ -59,121 +75,400 @@ describe("지역별 배출 안내 API", () => {
     });
   });
 
+  it("1페이지 정상 완료 결과를 반환한다", async () => {
+    const request = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(apiResponse([guideItem("1권역")], 1)));
+
+    await expect(
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
+    ).resolves.toMatchObject({
+      status: "success",
+      guides: [expect.objectContaining({ managementZoneName: "1권역" })],
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("여러 페이지 정상 완료 결과를 순서대로 병합한다", async () => {
+    const request = jest.fn((url: string) => {
+      const pageNo = Number(new URL(url).searchParams.get("pageNo"));
+      return Promise.resolve(
+        jsonResponse(apiResponse([guideItem(`${pageNo}권역`)], 3, 1)),
+      );
+    });
+
+    await expect(
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
+    ).resolves.toMatchObject({
+      status: "success",
+      guides: [
+        expect.objectContaining({ managementZoneName: "1권역" }),
+        expect.objectContaining({ managementZoneName: "2권역" }),
+        expect.objectContaining({ managementZoneName: "3권역" }),
+      ],
+    });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
   it("성공 응답에 유효한 항목이 없으면 결과 없음으로 분류한다", async () => {
     const request = jest
       .fn()
-      .mockResolvedValue(jsonResponse(apiResponse([{ CTPV_NM: "  " }])));
+      .mockResolvedValue(jsonResponse(apiResponse([{ CTPV_NM: "  " }], 1)));
 
     await expect(
-      fetchRegionalDisposalGuides("수원시", config, undefined, request),
-    ).resolves.toEqual({
-      status: "not-found",
-    });
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
+    ).resolves.toEqual({ status: "not-found" });
   });
 
   it("단일 항목 응답과 Android API의 숫자 성공 코드 0을 처리한다", async () => {
-    const request = jest
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({
-          response: {
-            header: { resultCode: 0 },
-            body: { items: { item: guideItem() } },
-          },
-        }),
-      );
+    const request = jest.fn().mockResolvedValue(
+      jsonResponse({
+        response: {
+          header: { resultCode: 0 },
+          body: { items: { item: guideItem() }, totalCount: 1 },
+        },
+      }),
+    );
 
     await expect(
-      fetchRegionalDisposalGuides("수원시", config, undefined, request),
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
     ).resolves.toMatchObject({
       status: "success",
       guides: [expect.objectContaining({ sigunguName: "수원시" })],
     });
   });
 
-  it("totalCount가 페이지 크기를 넘으면 모든 페이지를 합쳐 조회한다", async () => {
-    const firstItem = { ...guideItem(), MNG_ZONE_NM: "1권역" };
-    const secondItem = { ...guideItem(), MNG_ZONE_NM: "2권역" };
-    const request = jest.fn((url: string) => {
-      const pageNo = new URL(url).searchParams.get("pageNo");
-      return Promise.resolve(
-        jsonResponse(
-          apiResponse(pageNo === "1" ? [firstItem] : [secondItem], 2),
-        ),
-      );
-    });
+  it.each([
+    ["network" as const, new TypeError("Network request failed")],
+    ["api" as const, new Response(null, { status: 500 })],
+    [
+      "api" as const,
+      jsonResponse({ response: { header: { resultCode: "30" } } }),
+    ],
+  ])("첫 페이지 %s 오류는 전체 실패로 반환한다", async (reason, failure) => {
+    const request =
+      failure instanceof Error
+        ? jest.fn().mockRejectedValue(failure)
+        : jest.fn().mockResolvedValue(failure);
 
-    await expect(
-      fetchRegionalDisposalGuides("수원시", config, undefined, request),
-    ).resolves.toMatchObject({
-      status: "success",
-      guides: [
-        expect.objectContaining({ managementZoneName: "1권역" }),
-        expect.objectContaining({ managementZoneName: "2권역" }),
-      ],
-    });
-    expect(request).toHaveBeenCalledTimes(2);
-  });
-
-  it("네트워크, HTTP API, API 헤더 오류를 구분한다", async () => {
-    const networkRequest = jest
-      .fn()
-      .mockRejectedValue(new TypeError("Network request failed"));
-    const httpRequest = jest
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 500 }));
-    const apiRequest = jest
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({ response: { header: { resultCode: "30" } } }),
-      );
-    const malformedRequest = jest
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({ response: { header: { resultCode: "00" } } }),
-      );
-
-    await expect(
-      fetchRegionalDisposalGuides("수원시", config, undefined, networkRequest),
-    ).resolves.toEqual({
-      status: "failure",
-      reason: "network",
-    });
-    await expect(
-      fetchRegionalDisposalGuides("수원시", config, undefined, httpRequest),
-    ).resolves.toEqual({
-      status: "failure",
-      reason: "api",
-    });
-    await expect(
-      fetchRegionalDisposalGuides("수원시", config, undefined, apiRequest),
-    ).resolves.toEqual({
-      status: "failure",
-      reason: "api",
-    });
     await expect(
       fetchRegionalDisposalGuides(
         "수원시",
         config,
         undefined,
-        malformedRequest,
+        request,
+        testPolicy,
       ),
-    ).resolves.toEqual({
+    ).resolves.toEqual({ status: "failure", reason });
+  });
+
+  it("첫 페이지 timeout은 전체 실패로 반환한다", async () => {
+    jest.useFakeTimers();
+    const request = jest.fn(() => new Promise<Response>(() => undefined));
+    const result = fetchRegionalDisposalGuides(
+      "수원시",
+      config,
+      undefined,
+      request,
+      testPolicy,
+    );
+
+    await jest.advanceTimersByTimeAsync(testPolicy.pageTimeoutMs);
+
+    await expect(result).resolves.toEqual({
       status: "failure",
-      reason: "api",
+      reason: "timeout",
     });
   });
 
-  it("취소는 오류 결과로 바꾸지 않고 호출자에게 전파한다", async () => {
-    const controller = new AbortController();
-    const abortError = new Error("cancelled");
-    abortError.name = "AbortError";
-    const request = jest.fn().mockRejectedValue(abortError);
+  it.each([
+    ["network" as const, new TypeError("Network request failed")],
+    ["api" as const, new Response(null, { status: 500 })],
+  ])(
+    "후속 페이지 %s 오류는 앞 페이지를 partial result로 반환한다",
+    async (reason, failure) => {
+      const request = jest
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(apiResponse([guideItem("1권역")], 2, 1)),
+        );
+      if (failure instanceof Error) request.mockRejectedValueOnce(failure);
+      else request.mockResolvedValueOnce(failure);
+
+      await expect(
+        fetchRegionalDisposalGuides(
+          "수원시",
+          config,
+          undefined,
+          request,
+          testPolicy,
+        ),
+      ).resolves.toEqual({
+        status: "partial",
+        guides: [expect.objectContaining({ managementZoneName: "1권역" })],
+        metadata: {
+          reason,
+          fetchedPageCount: 1,
+          receivedItemCount: 1,
+          totalCount: 2,
+          failedPageNo: 2,
+          duplicateGuideCount: 0,
+        },
+      });
+    },
+  );
+
+  it("후속 페이지 timeout은 앞 페이지를 partial result로 반환한다", async () => {
+    jest.useFakeTimers();
+    const request = jest
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(apiResponse([guideItem("1권역")], 2, 1)),
+      )
+      .mockImplementationOnce(() => new Promise<Response>(() => undefined));
+    const result = fetchRegionalDisposalGuides(
+      "수원시",
+      config,
+      undefined,
+      request,
+      testPolicy,
+    );
+
+    await jest.advanceTimersByTimeAsync(testPolicy.pageTimeoutMs);
+
+    await expect(result).resolves.toMatchObject({
+      status: "partial",
+      guides: [expect.objectContaining({ managementZoneName: "1권역" })],
+      metadata: { reason: "timeout", failedPageNo: 2 },
+    });
+  });
+
+  it("페이지별 제한 안의 응답도 전체 time budget을 넘으면 partial result로 종료한다", async () => {
+    jest.useFakeTimers();
+    const request = jest.fn(
+      (url: string, options?: { signal?: AbortSignal }) => {
+        const pageNo = Number(new URL(url).searchParams.get("pageNo"));
+        return delayedResponse(
+          apiResponse([guideItem(`${pageNo}권역`)], 3, 1),
+          40,
+          options?.signal,
+        );
+      },
+    );
+    const result = fetchRegionalDisposalGuides(
+      "수원시",
+      config,
+      undefined,
+      request,
+      { ...testPolicy, pageTimeoutMs: 50, totalTimeoutMs: 90 },
+    );
+
+    await jest.advanceTimersByTimeAsync(90);
+
+    await expect(result).resolves.toMatchObject({
+      status: "partial",
+      guides: [
+        expect.objectContaining({ managementZoneName: "1권역" }),
+        expect.objectContaining({ managementZoneName: "2권역" }),
+      ],
+      metadata: {
+        reason: "timeout",
+        fetchedPageCount: 2,
+        failedPageNo: 3,
+      },
+    });
+  });
+
+  it("외부 cancellation은 첫 페이지와 후속 페이지 모두 결과로 변환하지 않는다", async () => {
+    const firstController = new AbortController();
+    const firstAbort = abortError("first cancelled");
+    const pendingRequest = jest.fn(
+      () => new Promise<Response>(() => undefined),
+    );
+    const firstResult = fetchRegionalDisposalGuides(
+      "수원시",
+      config,
+      firstController.signal,
+      pendingRequest,
+      testPolicy,
+    );
+
+    firstController.abort(firstAbort);
+
+    await expect(firstResult).rejects.toBe(firstAbort);
+
+    const nextController = new AbortController();
+    const nextAbort = abortError("next cancelled");
+    const nextRequest = jest
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(apiResponse([guideItem("1권역")], 2, 1)),
+      )
+      .mockImplementationOnce(() => new Promise<Response>(() => undefined));
+    const nextResult = fetchRegionalDisposalGuides(
+      "수원시",
+      config,
+      nextController.signal,
+      nextRequest,
+      testPolicy,
+    );
+    await Promise.resolve();
+
+    nextController.abort(nextAbort);
+
+    await expect(nextResult).rejects.toBe(nextAbort);
+  });
+
+  it("비정상 totalCount는 최대 페이지 상한에서 partial result로 종료한다", async () => {
+    const request = jest.fn((url: string) => {
+      const pageNo = Number(new URL(url).searchParams.get("pageNo"));
+      return Promise.resolve(
+        jsonResponse(apiResponse([guideItem(`${pageNo}권역`)], 10_000, 1)),
+      );
+    });
 
     await expect(
-      fetchRegionalDisposalGuides("수원시", config, controller.signal, request),
-    ).rejects.toBe(abortError);
-    expect(request.mock.calls[0][1]).toEqual({ signal: controller.signal });
+      fetchRegionalDisposalGuides("수원시", config, undefined, request, {
+        ...testPolicy,
+        maxPageCount: 3,
+      }),
+    ).resolves.toMatchObject({
+      status: "partial",
+      metadata: {
+        reason: "page-limit",
+        fetchedPageCount: 3,
+        receivedItemCount: 3,
+        totalCount: 10_000,
+      },
+    });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
+  it("totalCount보다 수신 건수가 많으면 불일치 partial result로 구분한다", async () => {
+    const request = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(
+          apiResponse([guideItem("1권역"), guideItem("2권역")], 1, 100),
+        ),
+      );
+
+    await expect(
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
+    ).resolves.toMatchObject({
+      status: "partial",
+      metadata: {
+        reason: "inconsistent-response",
+        receivedItemCount: 2,
+        totalCount: 1,
+      },
+    });
+  });
+
+  it("중간 페이지가 비어 있으면 추가 요청 없이 불일치 partial result로 종료한다", async () => {
+    const request = jest
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(apiResponse([guideItem("1권역")], 3, 1)),
+      )
+      .mockResolvedValueOnce(jsonResponse(apiResponse([], 3, 1)));
+
+    await expect(
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
+    ).resolves.toMatchObject({
+      status: "partial",
+      metadata: {
+        reason: "inconsistent-response",
+        fetchedPageCount: 2,
+        receivedItemCount: 1,
+        totalCount: 3,
+        failedPageNo: 2,
+      },
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("여러 페이지의 동일 row는 하나의 가이드로 유지한다", async () => {
+    const request = jest.fn(() =>
+      Promise.resolve(jsonResponse(apiResponse([guideItem()], 2, 1))),
+    );
+
+    await expect(
+      fetchRegionalDisposalGuides(
+        "수원시",
+        config,
+        undefined,
+        request,
+        testPolicy,
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      guides: [expect.objectContaining({ managementZoneName: "장안구" })],
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("완전한 결과만 캐시하고 partial result 다음 조회는 원격 요청을 다시 실행한다", async () => {
+    const request = jest
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(apiResponse([guideItem("1권역")], 2, 1)),
+      )
+      .mockRejectedValueOnce(new TypeError("Network request failed"))
+      .mockResolvedValueOnce(
+        jsonResponse(apiResponse([guideItem("1권역")], 2, 1)),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(apiResponse([guideItem("2권역")], 2, 1)),
+      );
+    const client = createRegionalGuideApiClient(config, request, testPolicy);
+
+    await expect(
+      client.fetchRegionalDisposalGuides("수원시"),
+    ).resolves.toMatchObject({ status: "partial" });
+    await expect(
+      client.fetchRegionalDisposalGuides("수원시"),
+    ).resolves.toMatchObject({ status: "success" });
+    await expect(
+      client.fetchRegionalDisposalGuides("수원시"),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(request).toHaveBeenCalledTimes(4);
   });
 
   it("환경 키가 없으면 네트워크 요청 없이 구성 오류를 반환한다", async () => {
@@ -185,23 +480,10 @@ describe("지역별 배출 안내 API", () => {
         createRegionalGuideApiConfig({}),
         undefined,
         request,
+        testPolicy,
       ),
     ).resolves.toEqual({ status: "failure", reason: "configuration" });
     expect(request).not.toHaveBeenCalled();
-  });
-
-  it("API 클라이언트는 주입된 구성과 요청 구현을 사용한다", async () => {
-    const request = jest
-      .fn()
-      .mockResolvedValue(jsonResponse(apiResponse([guideItem()])));
-    const client = createRegionalGuideApiClient(config, request);
-
-    await expect(
-      client.fetchRegionalDisposalGuides("수원시"),
-    ).resolves.toMatchObject({
-      status: "success",
-    });
-    expect(request).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -212,23 +494,48 @@ function jsonResponse(body: unknown): Response {
   });
 }
 
-function apiResponse(items: unknown[], totalCount?: number) {
+function delayedResponse(
+  body: unknown,
+  delayMs: number,
+  signal: AbortSignal | undefined,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => resolve(jsonResponse(body)), delayMs);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timeoutId);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
+}
+
+function apiResponse(items: unknown[], totalCount?: number, numOfRows = 100) {
   return {
     response: {
       header: { resultCode: "00" },
       body: {
         items: { item: items },
+        numOfRows,
         ...(totalCount === undefined ? {} : { totalCount }),
       },
     },
   };
 }
 
-function guideItem() {
+function abortError(message: string): Error {
+  const error = new Error(message);
+  error.name = "AbortError";
+  return error;
+}
+
+function guideItem(managementZoneName = "장안구") {
   return {
     CTPV_NM: "경기도",
     SGG_NM: "수원시",
-    MNG_ZONE_NM: "장안구",
+    MNG_ZONE_NM: managementZoneName,
     MNG_ZONE_TRGT_RGN_NM: "정자동",
     EMSN_PLC_TYPE: "문전수거",
     EMSN_PLC: "내 집 앞",
