@@ -32,6 +32,10 @@ import {
   useRegionalGuideFavorites,
   type RegionalGuideFavoriteState,
 } from "./useRegionalGuideFavorites";
+import {
+  isRegionPerformanceSpikeEnabled,
+  RegionPerformancePanel,
+} from "./RegionPerformancePanel";
 import { useRegionSearch } from "./useRegionSearch";
 
 interface DropdownAnchor {
@@ -295,6 +299,7 @@ export function RegionalGuideScreen({
     cancel: cancelSearch,
     selectCandidate,
     restoreCandidates,
+    performanceSnapshot: regionSearchPerformance,
   } = useRegionSearch(regionSearchClient);
   const [expandedDropdown, setExpandedDropdown] = useState<{
     level: RegionLevel;
@@ -453,6 +458,10 @@ export function RegionalGuideScreen({
           onRetry={submitSearch}
           onSelect={chooseSearchCandidate}
         />
+
+        {isRegionPerformanceSpikeEnabled() ? (
+          <RegionPerformancePanel searchPerformance={regionSearchPerformance} />
+        ) : null}
 
         <View style={styles.selectorCard}>
           <View style={styles.topDropdowns}>

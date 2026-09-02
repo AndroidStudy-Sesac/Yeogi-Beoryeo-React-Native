@@ -1,6 +1,36 @@
-import { createRegionAssetLoadResult } from "./regionRepository";
+import { statSync } from "node:fs";
+import { resolve } from "node:path";
+
+import {
+  createRegionAssetLoadResult,
+  estimateRegionModelBytes,
+  getRegionAssetLoadMetrics,
+  REGION_ASSET_SOURCE_STATS,
+} from "./regionRepository";
 
 describe("지역 asset 변환", () => {
+  it("실제 asset 크기와 row 수 메타데이터를 유지한다", () => {
+    const paths = [
+      "src/features/regional-guide/data/regions.json",
+      "src/features/regional-guide/data/assets/administrativeRegions.json",
+      "src/features/regional-guide/data/assets/regionalGuideAvailability.json",
+    ];
+
+    expect(paths.map((path) => statSync(resolve(path)).size)).toEqual(
+      REGION_ASSET_SOURCE_STATS.map((source) => source.sourceBytes),
+    );
+    const metrics = getRegionAssetLoadMetrics();
+    console.info("region asset metrics", metrics);
+
+    expect(metrics).toMatchObject({
+      sourceBytes: 1_400_502,
+      sourceRowCount: 7_108,
+      invalidRecordCount: 0,
+    });
+    expect(metrics).not.toHaveProperty("estimatedRegionModelBytes");
+    expect(estimateRegionModelBytes()).toBeGreaterThan(0);
+  });
+
   it("유효하지 않은 행을 제외하고 제공 가능 읍면동만 선택지로 만든다", () => {
     const result = createRegionAssetLoadResult(
       [
