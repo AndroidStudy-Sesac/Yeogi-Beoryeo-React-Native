@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createRegionSearchClient,
   type RegionSearchClient,
-  type RegionSearchPerformanceSnapshot,
 } from "../data/regionSearchClient";
 import type { RegionSearchCandidate } from "../domain/RegionSearchModel";
 import { classifyRegionSearchInput } from "../domain/regionSearch";
@@ -43,9 +42,6 @@ export function useRegionSearch(
   );
   const [query, setQueryValue] = useState("");
   const [state, setState] = useState<RegionSearchState>({ status: "empty" });
-  const [performanceSnapshot, setPerformanceSnapshot] =
-    useState<RegionSearchPerformanceSnapshot>();
-
   const cancelActiveRequest = useCallback(() => {
     activeControllerRef.current?.abort();
     activeControllerRef.current = undefined;
@@ -73,8 +69,6 @@ export function useRegionSearch(
       try {
         const result = await client.search(trimmedQuery, controller.signal);
         if (activeControllerRef.current !== controller) return;
-        setPerformanceSnapshot(client.getPerformanceSnapshot?.());
-
         if (result.status === "resolved") {
           setState({
             status: "resolved",
@@ -182,7 +176,6 @@ export function useRegionSearch(
     cancel,
     selectCandidate,
     restoreCandidates,
-    performanceSnapshot,
   };
 }
 
