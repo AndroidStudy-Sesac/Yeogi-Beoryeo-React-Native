@@ -1,6 +1,3 @@
-import administrativeRegionAsset from "./assets/administrativeRegions.json";
-import regionalGuideAvailabilityAsset from "./assets/regionalGuideAvailability.json";
-import regionAsset from "./regions.json";
 import type { Region, RegionLevel } from "../domain/Region";
 
 interface RegionalGuideRegionAssetItem {
@@ -8,7 +5,8 @@ interface RegionalGuideRegionAssetItem {
   sigunguName: string;
 }
 
-interface RegionalGuideAvailabilityAssetItem extends RegionalGuideRegionAssetItem {
+interface RegionalGuideAvailabilityAssetItem
+  extends RegionalGuideRegionAssetItem {
   managementZoneName: string;
   targetRegionName: string;
 }
@@ -23,11 +21,35 @@ export interface RegionAssetLoadResult {
   invalidRecordCount: number;
 }
 
-const regionAssetLoadResult = createRegionAssetLoadResult(
-  regionAsset,
-  regionalGuideAvailabilityAsset,
-  administrativeRegionAsset,
-);
+export interface RegionAssetSourceStat {
+  name: string;
+  sourceBytes: number;
+  rowCount: number;
+}
+
+export interface RegionAssetLoadMetrics {
+  sources: readonly RegionAssetSourceStat[];
+  sourceBytes: number;
+  sourceRowCount: number;
+  moduleAccessMilliseconds: number;
+  transformationMilliseconds: number;
+  totalMilliseconds: number;
+  outputRegionCount: number;
+  invalidRecordCount: number;
+}
+
+export const REGION_ASSET_SOURCE_STATS: readonly RegionAssetSourceStat[] = [
+  { name: "배출 안내 지역", sourceBytes: 16_455, rowCount: 218 },
+  { name: "행정구역", sourceBytes: 849_070, rowCount: 3_627 },
+  { name: "제공 가능 지역", sourceBytes: 534_977, rowCount: 3_263 },
+];
+
+interface RegionAssetRuntime {
+  result: RegionAssetLoadResult;
+  metrics: RegionAssetLoadMetrics;
+}
+
+let cachedRegionAssetRuntime: RegionAssetRuntime | undefined;
 
 export function createRegionAssetLoadResult(
   regionalGuideRegionAsset: unknown,
@@ -54,6 +76,27 @@ export function createRegionAssetLoadResult(
   const scopes = distinctBy(availableScopes, scopeKey).map(
     (scope) => guideScopeByKey.get(scopeKey(scope)) ?? scope,
   );
+  const scopeContexts = scopes.map((scope) => {
+    const administrativeRegionsInScope = administrativeRegions.items.filter(
+      (region) => isSameScope(scope, region),
+    );
+    const availabilityInScope = availability.items.filter((region) =>
+      isSameScope(scope, region),
+    );
+    const sidoRegionId = sidoId(scope.sidoName, administrativeRegions.items);
+    const administrativeRegion = administrativeRegionsInScope[0];
+    const sigunguRegionId = administrativeRegion
+      ? `sigungu:${administrativeRegion.adminCode.slice(0, 5)}`
+      : `sigungu:${sidoRegionId}:${scope.sigunguName}`;
+
+    return {
+      scope,
+      administrativeRegionsInScope,
+      availabilityInScope,
+      sidoRegionId,
+      sigunguRegionId,
+    };
+  });
   const sidoRegions = distinctBy(scopes, (scope) => scope.sidoName)
     .sort(byName((scope) => scope.sidoName))
     .map((scope) =>
@@ -64,48 +107,43 @@ export function createRegionAssetLoadResult(
         sidoId(scope.sidoName, administrativeRegions.items),
       ),
     );
-  const sigunguRegions = scopes
-    .sort(byScope)
-    .map((scope) =>
-      toRegion(
-        "sigungu",
-        scope.sigunguName,
-        sidoId(scope.sidoName, administrativeRegions.items),
-        sigunguId(scope, administrativeRegions.items),
-      ),
+  const sigunguRegions = scopeContexts
+    .sort((first, second) => byScope(first.scope, second.scope))
+    .map(({ scope, sidoRegionId, sigunguRegionId }) =>
+      toRegion("sigungu", scope.sigunguName, sidoRegionId, sigunguRegionId),
     );
-  const eupmyeondongRegions = scopes.flatMap((scope) => {
-    const administrationInScope = administrativeRegions.items.filter((region) =>
-      isSameScope(scope, region),
-    );
-    const availabilityInScope = availability.items.filter((region) =>
-      isSameScope(scope, region),
-    );
-    const hasDetailedCoverage = availabilityInScope.some(
-      hasEupmyeondongCoverage,
-    );
-    const availableAdministrativeRegions = hasDetailedCoverage
-      ? administrationInScope.filter((region) =>
-          availabilityInScope.some((availableRegion) =>
-            matchesEupmyeondong(availableRegion, region.eupmyeondongName),
-          ),
-        )
-      : administrationInScope;
-
-    return distinctBy(
-      availableAdministrativeRegions,
-      (region) => region.eupmyeondongName,
-    )
-      .sort(byName((region) => region.eupmyeondongName))
-      .map((region) =>
-        toRegion(
-          "eupmyeondong",
-          region.eupmyeondongName,
-          sigunguId(scope, administrativeRegions.items),
-          `eupmyeondong:${region.adminCode}`,
-        ),
+  const eupmyeondongRegions = scopeContexts.flatMap(
+    ({
+      administrativeRegionsInScope,
+      availabilityInScope,
+      sigunguRegionId,
+    }) => {
+      const hasDetailedCoverage = availabilityInScope.some(
+        hasEupmyeondongCoverage,
       );
-  });
+      const availableAdministrativeRegions = hasDetailedCoverage
+        ? administrativeRegionsInScope.filter((region) =>
+            availabilityInScope.some((availableRegion) =>
+              matchesEupmyeondong(availableRegion, region.eupmyeondongName),
+            ),
+          )
+        : administrativeRegionsInScope;
+
+      return distinctBy(
+        availableAdministrativeRegions,
+        (region) => region.eupmyeondongName,
+      )
+        .sort(byName((region) => region.eupmyeondongName))
+        .map((region) =>
+          toRegion(
+            "eupmyeondong",
+            region.eupmyeondongName,
+            sigunguRegionId,
+            `eupmyeondong:${region.adminCode}`,
+          ),
+        );
+    },
+  );
 
   return {
     regions: [...sidoRegions, ...sigunguRegions, ...eupmyeondongRegions],
@@ -114,21 +152,73 @@ export function createRegionAssetLoadResult(
 }
 
 export function findRegions(level: RegionLevel, parentId?: string): Region[] {
-  return regionAssetLoadResult.regions.filter(
+  return getRegionAssetRuntime().result.regions.filter(
     (region) => region.level === level && region.parentId === parentId,
   );
 }
 
 export function findRegionById(id: string): Region | undefined {
-  return regionAssetLoadResult.regions.find((region) => region.id === id);
+  return getRegionAssetRuntime().result.regions.find(
+    (region) => region.id === id,
+  );
 }
 
 export function getAvailableRegions(): Region[] {
-  return [...regionAssetLoadResult.regions];
+  return [...getRegionAssetRuntime().result.regions];
 }
 
 export function getRegionAssetLoadResult(): RegionAssetLoadResult {
-  return regionAssetLoadResult;
+  return getRegionAssetRuntime().result;
+}
+
+export function getRegionAssetLoadMetrics(): RegionAssetLoadMetrics {
+  return getRegionAssetRuntime().metrics;
+}
+
+/** 측정 패널에서만 호출하며 최초 asset 변환 시간에는 포함하지 않습니다. */
+export function estimateRegionModelBytes(): number {
+  return utf8ByteLength(JSON.stringify(getRegionAssetRuntime().result.regions));
+}
+
+function getRegionAssetRuntime(): RegionAssetRuntime {
+  if (cachedRegionAssetRuntime) return cachedRegionAssetRuntime;
+
+  const loadStartedAt = now();
+  // 정적 경로 require를 함수 안에서 최초 한 번 평가해 Metro JSON 모듈 접근 비용을 잽니다.
+  const regionalGuideRegionAsset: unknown = require("./regions.json");
+  const administrativeRegionAsset: unknown = require("./assets/administrativeRegions.json");
+  const regionalGuideAvailabilityAsset: unknown = require("./assets/regionalGuideAvailability.json");
+  const moduleAccessMilliseconds = now() - loadStartedAt;
+  const transformationStartedAt = now();
+  const result = createRegionAssetLoadResult(
+    regionalGuideRegionAsset,
+    regionalGuideAvailabilityAsset,
+    administrativeRegionAsset,
+  );
+  const transformationMilliseconds = now() - transformationStartedAt;
+  const sourceBytes = REGION_ASSET_SOURCE_STATS.reduce(
+    (total, source) => total + source.sourceBytes,
+    0,
+  );
+  const sourceRowCount = REGION_ASSET_SOURCE_STATS.reduce(
+    (total, source) => total + source.rowCount,
+    0,
+  );
+
+  cachedRegionAssetRuntime = {
+    result,
+    metrics: {
+      sources: REGION_ASSET_SOURCE_STATS,
+      sourceBytes,
+      sourceRowCount,
+      moduleAccessMilliseconds,
+      transformationMilliseconds,
+      totalMilliseconds: moduleAccessMilliseconds + transformationMilliseconds,
+      outputRegionCount: result.regions.length,
+      invalidRecordCount: result.invalidRecordCount,
+    },
+  };
+  return cachedRegionAssetRuntime;
 }
 
 function parseGuideRegions(
@@ -279,18 +369,6 @@ function sidoId(
   return adminCode ? `sido:${adminCode.slice(0, 2)}` : `sido:${sidoName}`;
 }
 
-function sigunguId(
-  scope: RegionalGuideRegionAssetItem,
-  administrativeRegions: AdministrativeRegionAssetItem[],
-): string {
-  const adminCode = administrativeRegions.find((region) =>
-    isSameScope(scope, region),
-  )?.adminCode;
-  return adminCode
-    ? `sigungu:${adminCode.slice(0, 5)}`
-    : `sigungu:${sidoId(scope.sidoName, administrativeRegions)}:${scope.sigunguName}`;
-}
-
 function toRegion(
   level: RegionLevel,
   name: string,
@@ -336,4 +414,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 interface ParseResult<T> {
   items: T[];
   invalidRecordCount: number;
+}
+
+function now(): number {
+  return globalThis.performance?.now() ?? Date.now();
+}
+
+function utf8ByteLength(value: string): number {
+  let bytes = 0;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    bytes +=
+      codePoint <= 0x7f
+        ? 1
+        : codePoint <= 0x7ff
+          ? 2
+          : codePoint <= 0xffff
+            ? 3
+            : 4;
+  }
+  return bytes;
 }

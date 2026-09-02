@@ -42,7 +42,6 @@ export function useRegionSearch(
   );
   const [query, setQueryValue] = useState("");
   const [state, setState] = useState<RegionSearchState>({ status: "empty" });
-
   const cancelActiveRequest = useCallback(() => {
     activeControllerRef.current?.abort();
     activeControllerRef.current = undefined;
@@ -70,7 +69,6 @@ export function useRegionSearch(
       try {
         const result = await client.search(trimmedQuery, controller.signal);
         if (activeControllerRef.current !== controller) return;
-
         if (result.status === "resolved") {
           setState({
             status: "resolved",

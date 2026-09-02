@@ -53,6 +53,40 @@ describe("지역 검색 client", () => {
     );
   });
 
+  it("여러 검색에서 같은 인덱스를 한 번만 생성해 재사용한다", async () => {
+    const performanceClient = createRegionSearchClient();
+    await performanceClient.search("역삼동", new AbortController().signal);
+    await performanceClient.search("망포동", new AbortController().signal);
+
+    const snapshot = performanceClient.getPerformanceSnapshot?.();
+    expect(snapshot).toMatchObject({
+      indexBuildCount: 1,
+      searchCount: 2,
+    });
+    expect(snapshot?.firstRequestMilliseconds).toBeGreaterThanOrEqual(
+      snapshot?.firstSearchMilliseconds ?? 0,
+    );
+    expect(snapshot?.latestRequestMilliseconds).toBeGreaterThanOrEqual(
+      snapshot?.latestSearchMilliseconds ?? 0,
+    );
+  });
+
+  it("이벤트 루프에 양보한 사이 취소되면 인덱스와 결과를 만들지 않는다", async () => {
+    const cancellableClient = createRegionSearchClient();
+    const controller = new AbortController();
+    const pendingSearch = cancellableClient.search("역삼동", controller.signal);
+
+    controller.abort();
+
+    await expect(pendingSearch).rejects.toMatchObject({ name: "AbortError" });
+    const snapshot = cancellableClient.getPerformanceSnapshot?.();
+    expect(snapshot).toMatchObject({
+      indexBuildCount: 0,
+      searchCount: 0,
+    });
+    expect(snapshot?.firstRequestMilliseconds).toBeUndefined();
+  });
+
   it("지역 정보가 없는 도로명만으로 전국 후보를 반환하지 않는다", async () => {
     const result = await client.search(
       "테헤란로 123",
