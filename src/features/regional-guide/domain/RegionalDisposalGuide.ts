@@ -24,11 +24,34 @@ export interface RegionalDisposalGuide {
 
 export type RegionalGuideFailureReason =
   | "configuration"
+  | "timeout"
   | "network"
   | "api"
   | "unknown";
 
+export type RegionalGuidePartialResultReason =
+  | "page-limit"
+  | "timeout"
+  | "network"
+  | "api"
+  | "inconsistent-response"
+  | "unknown";
+
+export interface RegionalGuidePartialResultMetadata {
+  reason: RegionalGuidePartialResultReason;
+  fetchedPageCount: number;
+  receivedItemCount: number;
+  totalCount?: number;
+  failedPageNo?: number;
+  duplicateGuideCount: number;
+}
+
 export type RegionalGuideLookupResult =
   | { status: "success"; guides: RegionalDisposalGuide[] }
+  | {
+      status: "partial";
+      guides: RegionalDisposalGuide[];
+      metadata: RegionalGuidePartialResultMetadata;
+    }
   | { status: "not-found" }
   | { status: "failure"; reason: RegionalGuideFailureReason };

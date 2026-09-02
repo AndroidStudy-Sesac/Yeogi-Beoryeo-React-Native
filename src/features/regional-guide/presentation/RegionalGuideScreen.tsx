@@ -716,7 +716,11 @@ function RegionalGuideApiValidationResult({
 
   return (
     <View
-      accessibilityLabel="지역별 배출 안내 조회 성공"
+      accessibilityLabel={
+        state.status === "partial"
+          ? "지역별 배출 안내 부분 조회 성공"
+          : "지역별 배출 안내 조회 성공"
+      }
       accessibilityLiveRegion="polite"
       style={styles.validationResult}
     >
@@ -748,6 +752,22 @@ function RegionalGuideApiValidationResult({
           </Pressable>
         ) : null}
       </View>
+      {state.status === "partial" ? (
+        <View style={styles.partialResultNotice}>
+          <Text style={styles.validationMessage}>
+            일부 페이지만 조회했습니다. 표시된 안내를 확인하고 필요하면 다시
+            조회해주세요.
+          </Text>
+          <Pressable
+            accessibilityLabel="지역별 배출 안내 전체 결과 다시 조회"
+            accessibilityRole="button"
+            onPress={onRetry}
+            style={styles.retryValidationButton}
+          >
+            <Text style={styles.retryValidationText}>다시 조회</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Text style={styles.validationValue}>{guideSummary(state.guide)}</Text>
       {favoriteState.status === "ready" &&
       favoriteState.persistenceError === "read" ? (
@@ -793,6 +813,7 @@ function wasteTypeLabel(wasteType: "general" | "food" | "recyclable"): string {
 }
 
 function failureLabel(reason: string): string {
+  if (reason === "timeout") return "시간 초과";
   if (reason === "network") return "네트워크 오류";
   if (reason === "api") return "API 오류";
   if (reason === "configuration") return "API 키 설정 오류";
@@ -800,6 +821,7 @@ function failureLabel(reason: string): string {
 }
 
 function failureTitle(reason: string): string {
+  if (reason === "timeout") return "배출 안내 조회 시간이 초과되었습니다.";
   if (reason === "network") return "네트워크 오류가 발생했습니다.";
   if (reason === "api") return "배출 안내 API 오류가 발생했습니다.";
   if (reason === "configuration") return "API 설정이 필요합니다.";
@@ -807,6 +829,7 @@ function failureTitle(reason: string): string {
 }
 
 function failureDescription(reason: string): string {
+  if (reason === "timeout") return "잠시 후 다시 조회해주세요.";
   if (reason === "network")
     return "네트워크 연결을 확인한 뒤 다시 조회해주세요.";
   if (reason === "api") return "잠시 후 다시 조회해주세요.";
@@ -1022,6 +1045,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   validationMessage: { color: "#4D544D", fontSize: 14, lineHeight: 21 },
+  partialResultNotice: { marginTop: 8 },
   retryValidationButton: {
     borderColor: "#2E7D32",
     borderRadius: 10,

@@ -2,6 +2,8 @@ import type {
   RegionalDisposalGuide,
   RegionalGuideFailureReason,
   RegionalGuideLookupResult,
+  RegionalGuidePartialResultMetadata,
+  RegionalGuidePartialResultReason,
   RegionalWasteSchedule,
   RegionalWasteType,
 } from "../domain/RegionalDisposalGuide";
@@ -9,6 +11,19 @@ import type {
 const HOUSEHOLD_WASTE_INFO_URL =
   "https://apis.data.go.kr/1741000/household_waste_info/info";
 const PAGE_SIZE = 100;
+
+export interface RegionalGuideRecoveryPolicy {
+  pageTimeoutMs: number;
+  totalTimeoutMs: number;
+  maxPageCount: number;
+}
+
+export const DEFAULT_REGIONAL_GUIDE_RECOVERY_POLICY: RegionalGuideRecoveryPolicy =
+  {
+    pageTimeoutMs: 2_000,
+    totalTimeoutMs: 5_000,
+    maxPageCount: 5,
+  };
 
 export interface RegionalGuideApiConfig {
   serviceKey?: string;
@@ -46,10 +61,33 @@ export function createRegionalGuideApiConfig(
 export function createRegionalGuideApiClient(
   config: RegionalGuideApiConfig = getRegionalGuideApiConfig(),
   request: FetchRequester = fetch,
+  recoveryPolicy: RegionalGuideRecoveryPolicy = DEFAULT_REGIONAL_GUIDE_RECOVERY_POLICY,
 ): RegionalGuideApiClient {
+  let recentCompleteResult:
+    | { sigunguName: string; result: CompleteRegionalGuideLookupResult }
+    | undefined;
+
   return {
-    fetchRegionalDisposalGuides: (sigunguName, signal) =>
-      fetchRegionalDisposalGuides(sigunguName, config, signal, request),
+    fetchRegionalDisposalGuides: async (sigunguName, signal) => {
+      throwIfAborted(signal);
+
+      const cacheKey = normalizeText(sigunguName) ?? "";
+      if (recentCompleteResult?.sigunguName === cacheKey) {
+        return recentCompleteResult.result;
+      }
+
+      const result = await fetchRegionalDisposalGuides(
+        sigunguName,
+        config,
+        signal,
+        request,
+        recoveryPolicy,
+      );
+      if (result.status === "success" || result.status === "not-found") {
+        recentCompleteResult = { sigunguName: cacheKey, result };
+      }
+      return result;
+    },
   };
 }
 
@@ -58,7 +96,10 @@ export async function fetchRegionalDisposalGuides(
   config: RegionalGuideApiConfig,
   signal?: AbortSignal,
   request: FetchRequester = fetch,
+  recoveryPolicy: RegionalGuideRecoveryPolicy = DEFAULT_REGIONAL_GUIDE_RECOVERY_POLICY,
 ): Promise<RegionalGuideLookupResult> {
+  throwIfAborted(signal);
+
   const normalizedSigunguName = normalizeText(sigunguName);
   const serviceKey = normalizeText(config.serviceKey);
   if (!normalizedSigunguName || !serviceKey) {
@@ -66,20 +107,34 @@ export async function fetchRegionalDisposalGuides(
   }
 
   try {
-    const items = await fetchAllPages(
+    const pageResult = await fetchAllPages(
       normalizedSigunguName,
       serviceKey,
       signal,
       request,
+      normalizeRecoveryPolicy(recoveryPolicy),
     );
-    const guides = items
+    const mappedGuides = pageResult.items
       .map(mapRegionalGuideItem)
       .filter((guide): guide is RegionalDisposalGuide => guide !== undefined);
+    const guides = distinctGuides(mappedGuides);
+
+    if (pageResult.partialMetadata) {
+      return {
+        status: "partial",
+        guides,
+        metadata: {
+          ...pageResult.partialMetadata,
+          duplicateGuideCount: mappedGuides.length - guides.length,
+        },
+      };
+    }
 
     return guides.length > 0
       ? { status: "success", guides }
       : { status: "not-found" };
   } catch (error) {
+    if (signal?.aborted) throw abortReason(signal);
     if (isAbortError(error)) throw error;
     return { status: "failure", reason: classifyFailure(error) };
   }
@@ -117,31 +172,211 @@ async function fetchAllPages(
   serviceKey: string,
   signal: AbortSignal | undefined,
   request: FetchRequester,
-): Promise<unknown[]> {
+  recoveryPolicy: RegionalGuideRecoveryPolicy,
+): Promise<PageCollectionResult> {
   const allItems: unknown[] = [];
-  let pageNo = 1;
+  const startedAt = Date.now();
+  let fetchedPageCount = 0;
 
-  while (true) {
-    const page = await fetchPage(
+  const fetchPageWithinBudget = async (pageNo: number) => {
+    const remainingBudgetMs =
+      recoveryPolicy.totalTimeoutMs - (Date.now() - startedAt);
+    if (remainingBudgetMs <= 0) throw new RegionalGuideTimeoutError();
+
+    const page = await fetchPageWithTimeout(
       sigunguName,
       serviceKey,
       pageNo,
       signal,
       request,
+      Math.min(recoveryPolicy.pageTimeoutMs, remainingBudgetMs),
     );
-    allItems.push(...page.items);
+    fetchedPageCount += 1;
+    return page;
+  };
 
-    if (page.totalCount === undefined || allItems.length >= page.totalCount) {
-      return allItems;
-    }
-    if (page.items.length === 0) {
-      throw new RegionalGuideApiError(
-        "페이지네이션 응답이 totalCount보다 작습니다.",
+  const firstPage = await fetchPageWithinBudget(1);
+  allItems.push(...firstPage.items);
+  const totalCount = firstPage.totalCount;
+
+  if (totalCount === undefined) return { items: allItems };
+  if (allItems.length > totalCount) {
+    return partialPageResult(
+      allItems,
+      "inconsistent-response",
+      fetchedPageCount,
+      totalCount,
+    );
+  }
+  if (allItems.length === totalCount) return { items: allItems };
+
+  const pageSize = normalizedPageSize(firstPage.numOfRows);
+  const totalPageCount = pageSize
+    ? Math.ceil(totalCount / pageSize)
+    : fetchedPageCount;
+  const lastPageNo = Math.min(
+    Math.max(totalPageCount, fetchedPageCount),
+    recoveryPolicy.maxPageCount,
+  );
+
+  for (let pageNo = 2; pageNo <= lastPageNo; pageNo += 1) {
+    let page: ApiPage;
+    try {
+      page = await fetchPageWithinBudget(pageNo);
+    } catch (error) {
+      if (signal?.aborted) throw abortReason(signal);
+      if (isAbortError(error)) throw error;
+
+      return partialPageResult(
+        allItems,
+        classifyPartialFailure(error),
+        fetchedPageCount,
+        totalCount,
+        pageNo,
       );
     }
 
-    pageNo += 1;
+    allItems.push(...page.items);
+
+    if (allItems.length > totalCount) {
+      return partialPageResult(
+        allItems,
+        "inconsistent-response",
+        fetchedPageCount,
+        totalCount,
+        pageNo,
+      );
+    }
+    if (allItems.length === totalCount) return { items: allItems };
+    if (page.items.length === 0) {
+      return partialPageResult(
+        allItems,
+        "inconsistent-response",
+        fetchedPageCount,
+        totalCount,
+        pageNo,
+      );
+    }
   }
+
+  if (totalPageCount > recoveryPolicy.maxPageCount) {
+    return partialPageResult(
+      allItems,
+      "page-limit",
+      fetchedPageCount,
+      totalCount,
+    );
+  }
+  if (allItems.length < totalCount) {
+    return partialPageResult(
+      allItems,
+      "inconsistent-response",
+      fetchedPageCount,
+      totalCount,
+    );
+  }
+
+  return { items: allItems };
+}
+
+async function fetchPageWithTimeout(
+  sigunguName: string,
+  serviceKey: string,
+  pageNo: number,
+  externalSignal: AbortSignal | undefined,
+  request: FetchRequester,
+  timeoutMs: number,
+): Promise<ApiPage> {
+  throwIfAborted(externalSignal);
+
+  const requestController = new AbortController();
+  let externalAbortListener: (() => void) | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const externalAbort = new Promise<never>((_, reject) => {
+    if (!externalSignal) return;
+
+    externalAbortListener = () => {
+      const error = abortReason(externalSignal);
+      reject(error);
+      requestController.abort(error);
+    };
+    externalSignal.addEventListener("abort", externalAbortListener, {
+      once: true,
+    });
+  });
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new RegionalGuideTimeoutError();
+      reject(error);
+      requestController.abort(error);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      fetchPage(
+        sigunguName,
+        serviceKey,
+        pageNo,
+        requestController.signal,
+        request,
+      ),
+      externalAbort,
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    if (externalSignal && externalAbortListener) {
+      externalSignal.removeEventListener("abort", externalAbortListener);
+    }
+  }
+}
+
+function partialPageResult(
+  items: unknown[],
+  reason: RegionalGuidePartialResultReason,
+  fetchedPageCount: number,
+  totalCount: number,
+  failedPageNo?: number,
+): PageCollectionResult {
+  return {
+    items,
+    partialMetadata: {
+      reason,
+      fetchedPageCount,
+      receivedItemCount: items.length,
+      totalCount,
+      ...(failedPageNo === undefined ? {} : { failedPageNo }),
+    },
+  };
+}
+
+function normalizedPageSize(numOfRows: number | undefined): number | undefined {
+  if (numOfRows === undefined) return PAGE_SIZE;
+  if (numOfRows <= 0) return undefined;
+  return Math.min(numOfRows, PAGE_SIZE);
+}
+
+function normalizeRecoveryPolicy(
+  policy: RegionalGuideRecoveryPolicy,
+): RegionalGuideRecoveryPolicy {
+  return {
+    pageTimeoutMs: positiveInteger(policy.pageTimeoutMs),
+    totalTimeoutMs: positiveInteger(policy.totalTimeoutMs),
+    maxPageCount: positiveInteger(policy.maxPageCount),
+  };
+}
+
+function positiveInteger(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
+}
+
+function distinctGuides(
+  guides: RegionalDisposalGuide[],
+): RegionalDisposalGuide[] {
+  return [
+    ...new Map(guides.map((guide) => [JSON.stringify(guide), guide])).values(),
+  ];
 }
 
 async function fetchPage(
@@ -190,6 +425,7 @@ function readApiPage(payload: unknown): ApiPage | undefined {
   const items = readRecord(body?.items)?.item;
   return {
     items: Array.isArray(items) ? items : isRecord(items) ? [items] : [],
+    numOfRows: readNonNegativeInteger(body, "numOfRows"),
     totalCount: readNonNegativeInteger(body, "totalCount"),
   };
 }
@@ -268,14 +504,34 @@ function hasGuideContent(guide: RegionalDisposalGuide): boolean {
 }
 
 function classifyFailure(error: unknown): RegionalGuideFailureReason {
+  if (error instanceof RegionalGuideTimeoutError) return "timeout";
   if (error instanceof RegionalGuideApiError) return "api";
   if (error instanceof TypeError) return "network";
   if (error instanceof SyntaxError) return "api";
   return "unknown";
 }
 
+function classifyPartialFailure(
+  error: unknown,
+): RegionalGuidePartialResultReason {
+  const reason = classifyFailure(error);
+  return reason === "configuration" ? "unknown" : reason;
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
+function abortReason(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) return signal.reason;
+
+  const error = new Error("요청이 취소되었습니다.");
+  error.name = "AbortError";
+  return error;
 }
 
 function readText(
@@ -323,7 +579,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 class RegionalGuideApiError extends Error {}
 
+class RegionalGuideTimeoutError extends Error {}
+
 interface ApiPage {
   items: unknown[];
+  numOfRows?: number;
   totalCount?: number;
 }
+
+interface PageCollectionResult {
+  items: unknown[];
+  partialMetadata?: Omit<
+    RegionalGuidePartialResultMetadata,
+    "duplicateGuideCount"
+  >;
+}
+
+type CompleteRegionalGuideLookupResult = Extract<
+  RegionalGuideLookupResult,
+  { status: "success" | "not-found" }
+>;

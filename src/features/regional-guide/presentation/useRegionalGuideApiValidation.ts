@@ -4,12 +4,18 @@ import type { RegionalGuideApiClient } from "../data/regionalGuideApi";
 import type {
   RegionalDisposalGuide,
   RegionalGuideFailureReason,
+  RegionalGuidePartialResultMetadata,
 } from "../domain/RegionalDisposalGuide";
 
 export type RegionalGuideApiValidationState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; guide: RegionalDisposalGuide }
+  | {
+      status: "partial";
+      guide: RegionalDisposalGuide;
+      metadata: RegionalGuidePartialResultMetadata;
+    }
   | { status: "not-found" }
   | { status: "not-provided" }
   | { status: "failure"; reason: RegionalGuideFailureReason };
@@ -52,14 +58,18 @@ export function useRegionalGuideApiValidation(client: RegionalGuideApiClient) {
         );
         if (activeControllerRef.current !== controller) return;
 
-        if (result.status === "success") {
+        if (result.status === "success" || result.status === "partial") {
           const guide = selectGuideForRegion(
             result.guides,
             request.eupmyeondongName,
           );
-          setState(
-            guide ? { status: "success", guide } : { status: "not-provided" },
-          );
+          if (!guide) {
+            setState({ status: "not-provided" });
+          } else if (result.status === "partial") {
+            setState({ status: "partial", guide, metadata: result.metadata });
+          } else {
+            setState({ status: "success", guide });
+          }
         } else if (result.status === "not-found") {
           setState({ status: "not-found" });
         } else {

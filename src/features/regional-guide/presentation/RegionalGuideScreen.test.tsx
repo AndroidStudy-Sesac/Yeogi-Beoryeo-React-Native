@@ -154,6 +154,37 @@ describe("RegionalGuideScreen", () => {
     ).toBeOnTheScreen();
   });
 
+  it("partial result의 정상 가이드와 재조회 안내를 함께 표시한다", async () => {
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest.fn().mockResolvedValue({
+        status: "partial",
+        guides: [gangneungGuide()],
+        metadata: {
+          reason: "timeout",
+          fetchedPageCount: 1,
+          receivedItemCount: 1,
+          totalCount: 2,
+          failedPageNo: 2,
+          duplicateGuideCount: 0,
+        },
+      }),
+    };
+    render(<RegionalGuideScreen regionalGuideApiClient={client} />);
+
+    selectGangneungRegion();
+    fireEvent.press(screen.getByText("조회"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("지역별 배출 안내 부분 조회 성공"),
+      ).toBeOnTheScreen();
+    });
+    expect(screen.getByText(/일부 페이지만 조회했습니다/)).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText("지역별 배출 안내 전체 결과 다시 조회"),
+    ).toBeOnTheScreen();
+  });
+
   it("조회 중 상태와 선택 지역 안내 미제공 상태를 구분한다", async () => {
     const request = deferredApiResult();
     const client: RegionalGuideApiClient = {
@@ -179,6 +210,7 @@ describe("RegionalGuideScreen", () => {
   });
 
   it.each([
+    ["timeout" as const, "배출 안내 조회 시간이 초과되었습니다."],
     ["api" as const, "배출 안내 API 오류가 발생했습니다."],
     ["configuration" as const, "API 설정이 필요합니다."],
   ])("%s 오류 상태를 구분해 표시한다", async (reason, expectedMessage) => {
