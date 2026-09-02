@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_VARIANT: development
+  NODE_ENV: development
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.14.0
+          cache: npm
+
+      - name: Setup npm
+        run: npm install --global npm@11.9.0 --no-audit --no-fund
+
+      - name: Print runtime versions
+        run: node --version && npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check dependency tree
+        run: npm ls --depth=0
+
+      - name: Check Expo dependencies
+        run: npm run expo:check
+
+      - name: Check types
+        run: npm run check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --ci
+
+  android:
+    name: Android native builds
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.14.0
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Print Java version
+        run: java -version
+
+      - name: Setup npm
+        run: npm install --global npm@11.9.0 --no-audit --no-fund
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build debug and release APKs
+        working-directory: android
+        env:
+          NODE_ENV: production
+        run: ./gradlew assembleDebug assembleRelease --no-daemon -PreactNativeArchitectures=x86_64
+
+      - name: Verify Android artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/build/outputs/apk/release/app-release.apk
+          unzip -l android/app/build/outputs/apk/release/app-release.apk \
+            | grep -q 'assets/index.android.bundle'
+
+  ios:
+    name: iOS unsigned release build
+    needs: quality
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.14.0
+          cache: npm
+
+      - name: Setup npm
+        run: npm install --global npm@11.9.0 --no-audit --no-fund
+
+      - name: Print Apple build tool versions
+        run: |
+          node --version
+          npm --version
+          xcodebuild -version
+          pod --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate iOS project
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods dependencies
+        run: pod install --project-directory=ios
+
+      - name: Build unsigned iOS app
+        shell: bash
+        env:
+          NODE_ENV: production
+        run: |
+          set -euo pipefail
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          test -n "$workspace"
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme YeogiBeoryeoDebug \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Verify iOS artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" \
+            -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$app_path"
+          test -f "$app_path/Info.plist"
+          test -f "$app_path/main.jsbundle"
+          test ! -d "$app_path/_CodeSignature"
+          test ! -f "$app_path/embedded.mobileprovision"
