@@ -11,7 +11,7 @@ permissions:
 
 env:
   EXPECTED_BUNDLE_IDENTIFIER: com.team.yeogibeoryeo.rn
-  IPA_BASENAME: yeogi-beoryeo-regional-guide-ios-sideload
+  IPA_BASENAME: yeogi-beoryeo-regional-guide-ios-sideload-${{ github.run_number }}
 
 jobs:
   build-ios-device:
@@ -44,15 +44,28 @@ jobs:
       - name: Run typecheck
         run: npm run typecheck
 
+      - name: Validate regional guide API configuration
+        env:
+          EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY:-}" || (echo "EXPO_PUBLIC_GETSPOT_SERVICE_KEY is required for the regional guide API Spike." && exit 1)
+
       - name: Generate iOS project
         env:
           CI: "1"
           EXPO_NO_TELEMETRY: "1"
+          EXPO_PUBLIC_ENABLE_REGION_PERFORMANCE_SPIKE: "1"
+          EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
         run: |
           npx expo prebuild --platform ios --no-install
           pod install --project-directory=ios
 
       - name: Build unsigned iPhone device app
+        env:
+          EXPO_NO_TELEMETRY: "1"
+          EXPO_PUBLIC_ENABLE_REGION_PERFORMANCE_SPIKE: "1"
+          EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
         run: |
           set -euo pipefail
 
@@ -78,6 +91,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             build
 
       - name: Verify and package unsigned device IPA
@@ -97,6 +111,12 @@ jobs:
           )"
           test "$actual_bundle_identifier" = "$EXPECTED_BUNDLE_IDENTIFIER"
           echo "Verified bundle identifier: $actual_bundle_identifier"
+
+          actual_build_number="$(
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist"
+          )"
+          test "$actual_build_number" = "$GITHUB_RUN_NUMBER"
+          echo "Verified build number: $actual_build_number"
 
           rm -rf build/ipa
           mkdir -p build/ipa/Payload
