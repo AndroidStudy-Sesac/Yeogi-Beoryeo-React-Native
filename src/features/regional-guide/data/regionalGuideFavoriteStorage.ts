@@ -4,7 +4,14 @@ import {
   createRegionalGuideFavoriteRepository,
   type RegionalGuideFavoriteRepository,
 } from "./regionalGuideFavoriteRepository";
+import { createLegacyRegionalGuideFavoriteReader } from "./legacyRegionalGuideFavoriteReader";
+import { createMigratingRegionalGuideFavoriteRepository } from "./regionalGuideFavoriteMigration";
 
 export function createAsyncStorageRegionalGuideFavoriteRepository(): RegionalGuideFavoriteRepository {
-  return createRegionalGuideFavoriteRepository(AsyncStorage);
+  const repository = createRegionalGuideFavoriteRepository(AsyncStorage);
+  return createMigratingRegionalGuideFavoriteRepository(
+    repository,
+    AsyncStorage,
+    createLegacyRegionalGuideFavoriteReader(),
+  );
 }
