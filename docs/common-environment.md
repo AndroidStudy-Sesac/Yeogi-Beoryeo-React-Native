@@ -32,7 +32,7 @@
 
 ## 소스 구조
 
-현재 공통 뼈대는 실제로 사용하는 `src/app`만 먼저 둡니다. 빈 디렉터리나 사용하지 않는 추상화는 만들지 않습니다.
+현재 공통 뼈대는 앱 조립을 담당하는 `src/app`과 기능별 작업 경계를 보여주는 `src/features`를 둡니다. 기능 내부 layer와 사용하지 않는 추상화는 미리 만들지 않습니다.
 
 ```text
 src/
@@ -40,9 +40,13 @@ src/
     navigation/   앱 전체 route와 navigator
     providers/    앱 전체 provider 조합
     App.tsx       앱 조립 지점
+  features/
+    item-search/     품목 검색
+    map/             지도
+    regional-guide/  지역 가이드
 ```
 
-기능 구현을 시작하면 아래 기준으로 feature를 추가합니다.
+각 기능 폴더에는 Git이 디렉터리를 추적할 수 있도록 빈 `.gitkeep`만 둡니다. 기능 구현을 시작하면 담당 feature 안에 아래 기준으로 layer를 추가합니다.
 
 ```text
 src/
