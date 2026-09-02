@@ -58,7 +58,24 @@ jobs:
           EXPO_PUBLIC_ENABLE_REGION_PERFORMANCE_SPIKE: "1"
           EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: ${{ secrets.EXPO_PUBLIC_GETSPOT_SERVICE_KEY }}
         run: |
+          set -euo pipefail
+
           npx expo prebuild --platform ios --no-install
+
+          # Expo prebuild는 ios.buildNumber가 없으면 CFBundleVersion을 1로 생성합니다.
+          # 팀 공용 app.json 대신 이번 Actions 산출물의 plist에 실행 번호를 기록합니다.
+          app_info_plist="$(
+            node -e "const { IOSConfig } = require('@expo/config-plugins'); process.stdout.write(IOSConfig.Paths.getInfoPlistPath(process.cwd()));"
+          )"
+          test -f "$app_info_plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" "$app_info_plist"
+
+          configured_build_number="$(
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_info_plist"
+          )"
+          test "$configured_build_number" = "$GITHUB_RUN_NUMBER"
+          echo "Configured build number: $configured_build_number"
+
           pod install --project-directory=ios
 
       - name: Build unsigned iPhone device app
@@ -91,7 +108,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             build
 
       - name: Verify and package unsigned device IPA
@@ -115,6 +131,7 @@ jobs:
           actual_build_number="$(
             /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist"
           )"
+          echo "Resolved build number: $actual_build_number (expected $GITHUB_RUN_NUMBER)"
           test "$actual_build_number" = "$GITHUB_RUN_NUMBER"
           echo "Verified build number: $actual_build_number"
 
