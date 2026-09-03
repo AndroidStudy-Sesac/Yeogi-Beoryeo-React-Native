@@ -70,6 +70,7 @@ describe("useRegionalGuideFavorites", () => {
     expect(result.current.state).toEqual({
       status: "ready",
       guideIds: [],
+      isPersisting: false,
       persistenceError: "read",
     });
   });
@@ -85,6 +86,7 @@ describe("useRegionalGuideFavorites", () => {
       expect(result.current.state).toEqual({
         status: "ready",
         guideIds: [guideId],
+        isPersisting: false,
         persistenceError: "write",
       }),
     );

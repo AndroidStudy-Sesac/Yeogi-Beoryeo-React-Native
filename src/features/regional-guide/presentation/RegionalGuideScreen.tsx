@@ -18,6 +18,10 @@ import {
 } from "../data/regionalGuideApi";
 import type { RegionalGuideFavoriteRepository } from "../data/regionalGuideFavoriteRepository";
 import { createAsyncStorageRegionalGuideFavoriteRepository } from "../data/regionalGuideFavoriteStorage";
+import {
+  regionalGuideSelectionPath,
+  resolveRegionalGuideSelection,
+} from "../data/regionalGuideSelection";
 import type { RegionSearchClient } from "../data/regionSearchClient";
 import type { RegionalDisposalGuide } from "../domain/RegionalDisposalGuide";
 import {
@@ -30,6 +34,7 @@ import { useRegionalGuide } from "./useRegionalGuide";
 import { useRegionalGuideApiValidation } from "./useRegionalGuideApiValidation";
 import {
   useRegionalGuideFavorites,
+  type RegionalGuideFavoritesController,
   type RegionalGuideFavoriteState,
 } from "./useRegionalGuideFavorites";
 import { useRegionSearch } from "./useRegionSearch";
@@ -252,14 +257,55 @@ function RegionDropdownMenu({
 interface RegionalGuideScreenProps {
   regionalGuideApiClient?: RegionalGuideApiClient;
   regionalGuideFavoriteRepository?: RegionalGuideFavoriteRepository;
+  favoriteController?: RegionalGuideFavoritesController;
   regionSearchClient?: RegionSearchClient;
+  initialGuideId?: RegionalGuideId;
+  initialGuide?: RegionalDisposalGuide;
+  onBack?: () => void;
 }
 
-export function RegionalGuideScreen({
+export function RegionalGuideScreen(props: RegionalGuideScreenProps) {
+  if (props.favoriteController) {
+    return (
+      <RegionalGuideScreenContent
+        {...props}
+        favoriteController={props.favoriteController}
+      />
+    );
+  }
+
+  return <RegionalGuideScreenWithLocalFavorites {...props} />;
+}
+
+function RegionalGuideScreenWithLocalFavorites(
+  props: RegionalGuideScreenProps,
+) {
+  const defaultFavoriteRepository = useMemo(
+    () => createAsyncStorageRegionalGuideFavoriteRepository(),
+    [],
+  );
+  const favoriteController = useRegionalGuideFavorites(
+    props.regionalGuideFavoriteRepository ?? defaultFavoriteRepository,
+  );
+
+  return (
+    <RegionalGuideScreenContent
+      {...props}
+      favoriteController={favoriteController}
+    />
+  );
+}
+
+function RegionalGuideScreenContent({
   regionalGuideApiClient,
-  regionalGuideFavoriteRepository,
+  favoriteController,
   regionSearchClient,
-}: RegionalGuideScreenProps) {
+  initialGuideId,
+  initialGuide,
+  onBack,
+}: RegionalGuideScreenProps & {
+  favoriteController: RegionalGuideFavoritesController;
+}) {
   const {
     selected,
     sidoRegions,
@@ -270,22 +316,17 @@ export function RegionalGuideScreen({
   } = useRegionalGuide();
   const defaultApiClient = useMemo(() => createRegionalGuideApiClient(), []);
   const apiClient = regionalGuideApiClient ?? defaultApiClient;
-  const defaultFavoriteRepository = useMemo(
-    () => createAsyncStorageRegionalGuideFavoriteRepository(),
-    [],
-  );
-  const favoriteRepository =
-    regionalGuideFavoriteRepository ?? defaultFavoriteRepository;
   const {
     state: favoriteState,
     toggle: toggleFavorite,
     isFavorite,
-  } = useRegionalGuideFavorites(favoriteRepository);
+  } = favoriteController;
   const {
     state: apiValidationState,
     validate,
     retry: retryValidation,
     reset: resetValidation,
+    hydrate,
   } = useRegionalGuideApiValidation(apiClient);
   const {
     query: searchQuery,
@@ -305,11 +346,31 @@ export function RegionalGuideScreen({
   const [candidateHistory, setCandidateHistory] = useState<
     RegionSearchCandidate[]
   >([]);
+  const hydratedGuideIdRef = useRef<RegionalGuideId | undefined>(undefined);
   const selectedPath = [selected.sido, selected.sigungu, selected.eupmyeondong]
     .filter((region): region is Region => Boolean(region))
     .map((region) => region.name)
     .join(" > ");
   const canLookup = Boolean(selected.sido && selected.sigungu);
+
+  useEffect(() => {
+    if (!initialGuideId || hydratedGuideIdRef.current === initialGuideId)
+      return;
+
+    const selection = resolveRegionalGuideSelection(initialGuideId);
+    if (!selection?.sigungu) return;
+
+    hydratedGuideIdRef.current = initialGuideId;
+    selectRegionPath(selection);
+    setConfirmedPath(regionalGuideSelectionPath(selection));
+    setConfirmedGuideId(initialGuideId);
+    const request = {
+      sigunguName: selection.sigungu.name,
+      eupmyeondongName: selection.eupmyeondong?.name,
+    };
+    if (initialGuide) hydrate(request, initialGuide);
+    else void validate(request);
+  }, [hydrate, initialGuide, initialGuideId, selectRegionPath, validate]);
 
   useEffect(() => {
     if (regionSearchState.status !== "resolved") return;
@@ -407,6 +468,16 @@ export function RegionalGuideScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {onBack ? (
+          <Pressable
+            accessibilityLabel="홈으로 돌아가기"
+            accessibilityRole="button"
+            onPress={onBack}
+            style={styles.backButton}
+          >
+            <Text style={styles.backButtonText}>‹ 홈</Text>
+          </Pressable>
+        ) : null}
         <View style={styles.header}>
           <Text style={styles.title}>지역별 배출 가이드</Text>
           <Text style={styles.subtitle}>
@@ -853,6 +924,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
   },
+  backButton: { alignSelf: "flex-start", marginBottom: 14, paddingVertical: 4 },
+  backButtonText: { color: "#2E7D32", fontSize: 16, fontWeight: "800" },
   header: { marginBottom: 22 },
   title: { color: "#2E7D32", fontSize: 28, fontWeight: "800" },
   subtitle: {

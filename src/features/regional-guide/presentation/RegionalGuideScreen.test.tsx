@@ -18,6 +18,7 @@ import { createRegionalGuideId } from "../domain/RegionalGuideFavorite";
 import type { RegionalGuideLookupResult } from "../domain/RegionalDisposalGuide";
 import type { RegionSearchCandidate } from "../domain/RegionSearchModel";
 import { RegionalGuideScreen } from "./RegionalGuideScreen";
+import type { RegionalGuideFavoritesController } from "./useRegionalGuideFavorites";
 
 describe("RegionalGuideScreen", () => {
   it("시도·시군구·읍면동을 각각 드롭다운으로 연다", () => {
@@ -307,6 +308,31 @@ describe("RegionalGuideScreen", () => {
     });
   });
 
+  it("홈 카드에서 받은 대표 지역과 정상 결과를 재요청 없이 상세에 복원한다", async () => {
+    const apiClient = pendingApiClient();
+    const onBack = jest.fn();
+    render(
+      <RegionalGuideScreen
+        favoriteController={resolvedFavoriteController([gangneungGuideId()])}
+        initialGuide={gangneungGuide()}
+        initialGuideId={gangneungGuideId()}
+        onBack={onBack}
+        regionalGuideApiClient={apiClient}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("배출 안내")).toBeOnTheScreen();
+    });
+    expect(
+      screen.getAllByText("강원특별자치도 > 강릉시 > 강남동"),
+    ).toHaveLength(2);
+    expect(apiClient.fetchRegionalDisposalGuides).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByLabelText("홈으로 돌아가기"));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
   it("하나의 검색 후보는 선택 지역으로 연결하고 바로 안내를 조회한다", async () => {
     const apiClient = pendingApiClient();
     const searchClient: RegionSearchClient = {
@@ -469,6 +495,16 @@ function pendingFavoriteRepository(): RegionalGuideFavoriteRepository {
   return {
     restore: jest.fn(() => new Promise(() => undefined)),
     save: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
+function resolvedFavoriteController(
+  guideIds: ReturnType<typeof gangneungGuideId>[],
+): RegionalGuideFavoritesController {
+  return {
+    state: { status: "ready", guideIds, isPersisting: false },
+    toggle: jest.fn(),
+    isFavorite: (guideId) => guideIds.includes(guideId),
   };
 }
 

@@ -105,10 +105,20 @@ export function useRegionalGuideApiValidation(client: RegionalGuideApiClient) {
     return request ? validate(request) : Promise.resolve();
   }, [validate]);
 
-  return { state, validate, retry, reset };
+  const hydrate = useCallback(
+    (request: RegionalGuideLookupRequest, guide: RegionalDisposalGuide) => {
+      activeControllerRef.current?.abort();
+      activeControllerRef.current = undefined;
+      lastRequestRef.current = request;
+      setState({ status: "success", guide });
+    },
+    [],
+  );
+
+  return { state, validate, retry, reset, hydrate };
 }
 
-function selectGuideForRegion(
+export function selectGuideForRegion(
   guides: RegionalDisposalGuide[],
   eupmyeondongName: string | undefined,
 ): RegionalDisposalGuide | undefined {

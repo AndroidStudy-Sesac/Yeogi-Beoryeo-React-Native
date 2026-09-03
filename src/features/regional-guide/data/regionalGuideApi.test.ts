@@ -471,6 +471,22 @@ describe("지역별 배출 안내 API", () => {
     expect(request).toHaveBeenCalledTimes(4);
   });
 
+  it("foreground 갱신을 위해 특정 시군구의 정상 결과 캐시를 비운다", async () => {
+    const request = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(apiResponse([guideItem("1권역")], 1, 1)));
+    const client = createRegionalGuideApiClient(config, request, testPolicy);
+
+    await client.fetchRegionalDisposalGuides("수원시");
+    await client.fetchRegionalDisposalGuides("수원시");
+    expect(request).toHaveBeenCalledTimes(1);
+
+    client.clearCache?.("수원시");
+    await client.fetchRegionalDisposalGuides("수원시");
+
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("환경 키가 없으면 네트워크 요청 없이 구성 오류를 반환한다", async () => {
     const request = jest.fn();
 
