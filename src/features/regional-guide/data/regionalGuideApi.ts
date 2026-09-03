@@ -40,6 +40,7 @@ export interface RegionalGuideApiClient {
     sigunguName: string,
     signal?: AbortSignal,
   ): Promise<RegionalGuideLookupResult>;
+  clearCache?(sigunguName?: string): void;
 }
 
 /**
@@ -87,6 +88,14 @@ export function createRegionalGuideApiClient(
         recentCompleteResult = { sigunguName: cacheKey, result };
       }
       return result;
+    },
+    clearCache(sigunguName) {
+      if (
+        !sigunguName ||
+        recentCompleteResult?.sigunguName === normalizeText(sigunguName)
+      ) {
+        recentCompleteResult = undefined;
+      }
     },
   };
 }
@@ -493,13 +502,13 @@ function normalizeTime(value: string | undefined): string | undefined {
 function hasGuideContent(guide: RegionalDisposalGuide): boolean {
   return Boolean(
     guide.sidoName ||
-      guide.sigunguName ||
-      guide.managementZoneName ||
-      guide.targetRegionName ||
-      guide.disposalPlaceType ||
-      guide.disposalPlace ||
-      guide.uncollectedDays ||
-      guide.schedules.length > 0,
+    guide.sigunguName ||
+    guide.managementZoneName ||
+    guide.targetRegionName ||
+    guide.disposalPlaceType ||
+    guide.disposalPlace ||
+    guide.uncollectedDays ||
+    guide.schedules.length > 0,
   );
 }
 

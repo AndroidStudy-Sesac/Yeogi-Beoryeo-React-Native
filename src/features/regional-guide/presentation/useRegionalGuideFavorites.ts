@@ -8,8 +8,15 @@ export type RegionalGuideFavoriteState =
   | {
       status: "ready";
       guideIds: RegionalGuideId[];
+      isPersisting: boolean;
       persistenceError?: "read" | "write";
     };
+
+export interface RegionalGuideFavoritesController {
+  state: RegionalGuideFavoriteState;
+  toggle(guideId: RegionalGuideId): void;
+  isFavorite(guideId: RegionalGuideId): boolean;
+}
 
 export function useRegionalGuideFavorites(
   repository: RegionalGuideFavoriteRepository,
@@ -32,7 +39,7 @@ export function useRegionalGuideFavorites(
         if (!mountedRef.current) return;
         guideIdsRef.current = guideIds;
         lastPersistedGuideIdsRef.current = guideIds;
-        setState({ status: "ready", guideIds });
+        setState({ status: "ready", guideIds, isPersisting: false });
       })
       .catch(() => {
         if (!mountedRef.current) return;
@@ -41,6 +48,7 @@ export function useRegionalGuideFavorites(
         setState({
           status: "ready",
           guideIds: [],
+          isPersisting: false,
           persistenceError: "read",
         });
       });
@@ -61,13 +69,27 @@ export function useRegionalGuideFavorites(
       const revision = latestWriteRevisionRef.current + 1;
       latestWriteRevisionRef.current = revision;
       guideIdsRef.current = nextGuideIds;
-      setState({ status: "ready", guideIds: nextGuideIds });
+      setState({
+        status: "ready",
+        guideIds: nextGuideIds,
+        isPersisting: true,
+      });
 
       writeQueueRef.current = writeQueueRef.current
         .catch(() => undefined)
         .then(() => repository.save(nextGuideIds))
         .then(() => {
           lastPersistedGuideIdsRef.current = nextGuideIds;
+          if (
+            mountedRef.current &&
+            latestWriteRevisionRef.current === revision
+          ) {
+            setState({
+              status: "ready",
+              guideIds: guideIdsRef.current,
+              isPersisting: false,
+            });
+          }
         })
         .catch(() => {
           if (
@@ -79,6 +101,7 @@ export function useRegionalGuideFavorites(
             setState({
               status: "ready",
               guideIds: persistedGuideIds,
+              isPersisting: false,
               persistenceError: "write",
             });
           }
