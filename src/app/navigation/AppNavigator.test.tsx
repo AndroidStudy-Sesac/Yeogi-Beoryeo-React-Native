@@ -20,6 +20,8 @@ import {
   type MapStackParamList,
 } from './routes';
 
+jest.useFakeTimers();
+
 function ItemSearchTestScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
