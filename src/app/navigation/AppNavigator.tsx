@@ -1,5 +1,10 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useFocusEffect } from '@react-navigation/native';
+import {
+  BottomTabBar,
+  createBottomTabNavigator,
+  type BottomTabBarProps,
+} from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
+import { CommonActions, useFocusEffect, useTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   useCallback,
@@ -13,12 +18,18 @@ import {
 } from 'react';
 
 import { BottomTabIcon } from './BottomTabIcon';
-import { BOTTOM_TAB_ITEMS } from './navigationPolicy';
+import {
+  BOTTOM_TAB_ITEMS,
+  getBottomTabNavigationAction,
+  getSelectedBottomTab,
+  type AppRouteSelection,
+} from './navigationPolicy';
 import {
   APP_SCREEN_ROUTES,
   BOTTOM_TAB_ROUTES,
   type AppScreenRouteName,
   type AppTabParamList,
+  type BottomTabRouteName,
   type FavoritesStackParamList,
   type HomeStackParamList,
   type MapStackParamList,
@@ -45,8 +56,57 @@ export function AppNavigator({ screens }: { screens: AppScreenRegistry }) {
     <AppScreensProvider screens={screens}>
       <BottomTabBarVisibilityContext.Provider value={setBottomTabBarVisible}>
         <Tab.Navigator
-          backBehavior="history"
+          backBehavior="initialRoute"
           initialRouteName={BOTTOM_TAB_ROUTES.HOME}
+          tabBar={props => <AppBottomTabBar {...props} />}
+          screenListeners={({ navigation, route }) => ({
+            tabPress: event => {
+              const state = navigation.getState();
+              const targetTab = route.name;
+              const shouldReset =
+                targetTab === BOTTOM_TAB_ROUTES.HOME ||
+                getBottomTabNavigationAction(
+                  getCurrentBottomTab(state),
+                  targetTab,
+                ) === 'RESET_TO_ROOT';
+
+              event.preventDefault();
+              setBottomTabBarVisible(true);
+              navigation.dispatch(
+                CommonActions.reset({
+                  ...state,
+                  routes: state.routes.map(tab => {
+                    // Tab clicks return through the search root, while direct
+                    // feature navigation can retain its originating screen.
+                    if (tab.name === BOTTOM_TAB_ROUTES.HOME && tab.state) {
+                      return {
+                        ...tab,
+                        params: undefined,
+                        state: {
+                          ...tab.state,
+                          index: 0,
+                          routes: [tab.state.routes[0]],
+                        },
+                      };
+                    }
+                    if (tab.key !== route.key || !shouldReset) return tab;
+                    if (targetTab === BOTTOM_TAB_ROUTES.HOME && !tab.state) {
+                      return tab;
+                    }
+                    return {
+                      ...tab,
+                      params: undefined,
+                      state: {
+                        index: 0,
+                        routes: [{ name: TAB_ROOT_SCREENS[targetTab] }],
+                      },
+                    };
+                  }),
+                }),
+              );
+              navigation.dispatch(CommonActions.navigate(targetTab));
+            },
+          })}
           screenOptions={{
             headerShown: false,
             lazy: true,
@@ -77,6 +137,48 @@ export function AppNavigator({ screens }: { screens: AppScreenRegistry }) {
       </BottomTabBarVisibilityContext.Provider>
     </AppScreensProvider>
   );
+}
+
+function getCurrentBottomTab(
+  state: BottomTabBarProps['state'],
+): BottomTabRouteName | undefined {
+  const tab = state.routes[state.index];
+  const stack = tab.state;
+  const screen = stack?.routes[stack.index ?? 0];
+  return screen
+    ? getSelectedBottomTab(screen as AppRouteSelection)
+    : (tab.name as BottomTabRouteName);
+}
+
+function AppBottomTabBar(props: BottomTabBarProps) {
+  const { colors } = useTheme();
+  const selectedTab = getCurrentBottomTab(props.state);
+  const descriptors = Object.fromEntries(
+    Object.entries(props.descriptors).map(([key, descriptor]) => {
+      const selected = descriptor.route.name === selectedTab;
+      const color = selected ? colors.primary : colors.text;
+      return [
+        key,
+        {
+          ...descriptor,
+          options: {
+            ...descriptor.options,
+            tabBarButton: buttonProps => (
+              <PlatformPressable {...buttonProps} aria-selected={selected} />
+            ),
+            tabBarIcon: iconProps => descriptor.options.tabBarIcon?.({
+              ...iconProps,
+              focused: selected,
+              color,
+            }),
+            tabBarLabelStyle: [descriptor.options.tabBarLabelStyle, { color }],
+          },
+        } satisfies typeof descriptor,
+      ];
+    }),
+  );
+
+  return <BottomTabBar {...props} descriptors={descriptors} />;
 }
 
 export function useBottomTabBarVisibility(isVisible: boolean) {
@@ -219,3 +321,10 @@ const TAB_COMPONENTS = {
   [BOTTOM_TAB_ROUTES.REGIONAL_GUIDE]: RegionalGuideStackNavigator,
   [BOTTOM_TAB_ROUTES.FAVORITES]: FavoritesStackNavigator,
 } satisfies Record<keyof AppTabParamList, ComponentType>;
+
+const TAB_ROOT_SCREENS = {
+  [BOTTOM_TAB_ROUTES.HOME]: APP_SCREEN_ROUTES.ITEM_SEARCH,
+  [BOTTOM_TAB_ROUTES.MAP]: APP_SCREEN_ROUTES.MAP,
+  [BOTTOM_TAB_ROUTES.REGIONAL_GUIDE]: APP_SCREEN_ROUTES.REGIONAL_GUIDE,
+  [BOTTOM_TAB_ROUTES.FAVORITES]: APP_SCREEN_ROUTES.FAVORITES,
+} as const;

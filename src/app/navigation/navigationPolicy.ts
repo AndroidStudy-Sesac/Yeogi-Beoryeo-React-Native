@@ -35,7 +35,7 @@ export type AppRouteSelection =
   | { name: 'RegionalGuide'; params?: RegionalGuideRouteParams };
 
 export function getBottomTabNavigationAction(
-  currentTab: BottomTabRouteName,
+  currentTab: BottomTabRouteName | undefined,
   targetTab: BottomTabRouteName,
 ): BottomTabNavigationAction {
   return currentTab === targetTab ? 'RESET_TO_ROOT' : 'RESTORE_STATE';

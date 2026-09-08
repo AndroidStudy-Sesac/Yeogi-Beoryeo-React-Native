@@ -1,11 +1,23 @@
-import { useNavigation } from '@react-navigation/native';
+import {
+  createNavigationContainerRef,
+  CommonActions,
+  NavigationContainer,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useState } from 'react';
 import { Button, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AppProviders } from '../providers/AppProviders';
+import {
+  createItemGuideDetailNavigationTarget,
+  createMapNavigationTarget,
+  createRegionalGuideNavigationTarget,
+} from './navigationTargets';
 import {
   AppNavigator,
   type AppScreenRegistry,
@@ -60,11 +72,16 @@ function MapTestScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<MapStackParamList>>();
   const [isBottomTabBarVisible, setBottomTabBarVisible] = useState(true);
+  const route = useRoute<RouteProp<MapStackParamList, 'Map'>>();
+  const [count, setCount] = useState(0);
   useBottomTabBarVisibility(isBottomTabBarVisible);
 
   return (
     <View>
       <Text>지도 테스트 화면</Text>
+      <Text>{`지도 상태 ${count}`}</Text>
+      <Text>{`지도 종류 ${route.params?.initialSpotType ?? '기본'}`}</Text>
+      <Button onPress={() => setCount(value => value + 1)} title="지도 상태 변경" />
       <Button
         onPress={() => setBottomTabBarVisible(false)}
         title="하단 탭 숨기기"
@@ -137,11 +154,15 @@ const screens: AppScreenRegistry = {
 };
 
 async function renderNavigator() {
-  return render(
-    <AppProviders>
-      <AppNavigator screens={screens} />
-    </AppProviders>,
+  const navigation = createNavigationContainerRef<AppTabParamList>();
+  const result = await render(
+    <SafeAreaProvider>
+      <NavigationContainer ref={navigation}>
+        <AppNavigator screens={screens} />
+      </NavigationContainer>
+    </SafeAreaProvider>,
   );
+  return { ...result, navigation };
 }
 
 describe('<AppNavigator />', () => {
@@ -236,5 +257,91 @@ describe('<AppNavigator />', () => {
 
     await waitFor(() => expect(getByText('품목 검색 테스트 화면')).toBeTruthy());
     expect(getByRole('button', { name: '홈 탭' })).toBeTruthy();
+  });
+
+  it('지도 탭 재선택은 전달값과 화면 상태를 초기화합니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator();
+    const target = createMapNavigationTarget({ initialSpotType: 'BATTERY_BIN' });
+    await act(() =>
+      navigation.dispatch(CommonActions.navigate(target.name, target.params)),
+    );
+    await fireEvent.press(getByRole('button', { name: '지도 상태 변경' }));
+    expect(getByText('지도 상태 1')).toBeTruthy();
+    expect(getByText('지도 종류 BATTERY_BIN')).toBeTruthy();
+
+    await fireEvent.press(getByRole('button', { name: '지도 탭' }));
+
+    await waitFor(() => expect(getByText('지도 상태 0')).toBeTruthy());
+    expect(getByText('지도 종류 기본')).toBeTruthy();
+  });
+
+  it.each([
+    [
+      '저장 품목 상세',
+      createItemGuideDetailNavigationTarget('glass', 'FAVORITES'),
+      '저장 테스트 화면',
+    ],
+    [
+      '지도 지역 안내',
+      createRegionalGuideNavigationTarget({ initialAddress: '서울특별시 중구' }),
+      '지도 테스트 화면',
+    ],
+    [
+      '저장 지역 안내',
+      createRegionalGuideNavigationTarget({
+        entrySource: 'FAVORITES',
+        initialFavoriteTargetId: 'seoul',
+      }),
+      '저장 테스트 화면',
+    ],
+  ] as const)(
+    '%s를 처음 열어도 뒤로가기할 첫 화면이 있습니다',
+    async (_label, target, rootText) => {
+      const { getByRole, getByText, navigation } = await renderNavigator();
+      await act(() =>
+        navigation.dispatch(CommonActions.navigate(target.name, target.params)),
+      );
+      await fireEvent.press(getByRole('button', { name: '뒤로가기' }));
+      await waitFor(() => expect(getByText(rootText)).toBeTruthy());
+    },
+  );
+
+  it('유용한 가이드에서는 선택된 하단 탭이 없습니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator();
+    await act(() => navigation.navigate('HomeTab', {
+      screen: 'ItemUsefulGuide',
+      params: { guideType: 'SMALL_E_WASTE' },
+    }));
+    await waitFor(() => expect(getByText('보조 테스트 화면')).toBeTruthy());
+    for (const name of ['홈 탭', '지도 탭', '안내 탭', '저장 탭']) {
+      expect(getByRole('button', { name }).props.accessibilityState).toMatchObject({
+        selected: false,
+      });
+    }
+  });
+
+  it('여러 탭을 이동한 뒤 첫 화면에서 뒤로가기하면 홈으로 돌아갑니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator();
+    await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+    await fireEvent.press(getByRole('button', { name: '지도 탭' }));
+    await act(() => navigation.goBack());
+    await waitFor(() => expect(getByText('품목 검색 테스트 화면')).toBeTruthy());
+  });
+
+  it('다른 탭에서 홈을 누르면 상세 대신 기존 검색 화면으로 돌아갑니다', async () => {
+    const { getByRole, getByText } = await renderNavigator();
+    await fireEvent.press(getByRole('button', { name: '상태 변경' }));
+    await fireEvent.press(getByRole('button', { name: '품목 상세 열기' }));
+    await fireEvent.press(getByRole('button', { name: '지도 탭' }));
+    await fireEvent.press(getByRole('button', { name: '홈 탭' }));
+    await waitFor(() => expect(getByText('검색 상태 1')).toBeTruthy());
+  });
+
+  it('상세에서 탭을 전환한 뒤 뒤로가기하면 검색 화면으로 돌아갑니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator();
+    await fireEvent.press(getByRole('button', { name: '품목 상세 열기' }));
+    await fireEvent.press(getByRole('button', { name: '지도 탭' }));
+    await act(() => navigation.goBack());
+    await waitFor(() => expect(getByText('품목 검색 테스트 화면')).toBeTruthy());
   });
 });

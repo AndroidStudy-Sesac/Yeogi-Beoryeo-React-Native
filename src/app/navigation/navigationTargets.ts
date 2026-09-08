@@ -12,6 +12,7 @@ export type ItemGuideDetailNavigationTarget =
   | {
       name: 'FavoritesTab';
       params: {
+        initial: false;
         params: ItemGuideDetailRouteParams;
         screen: 'ItemGuideDetail';
       };
@@ -19,6 +20,7 @@ export type ItemGuideDetailNavigationTarget =
   | {
       name: 'HomeTab';
       params: {
+        initial: false;
         params: ItemGuideDetailRouteParams;
         screen: 'ItemGuideDetail';
       };
@@ -28,6 +30,7 @@ export type RegionalGuideNavigationTarget =
   | {
       name: 'FavoritesTab';
       params: {
+        initial: false;
         params: RegionalGuideRouteParams;
         screen: 'RegionalGuide';
       };
@@ -35,6 +38,7 @@ export type RegionalGuideNavigationTarget =
   | {
       name: 'MapTab';
       params: {
+        initial: false;
         params: RegionalGuideRouteParams;
         screen: 'RegionalGuide';
       };
@@ -42,6 +46,7 @@ export type RegionalGuideNavigationTarget =
   | {
       name: 'RegionalGuideTab';
       params: {
+        initial: false;
         params: RegionalGuideRouteParams;
         screen: 'RegionalGuide';
       };
@@ -64,11 +69,19 @@ export function createItemGuideDetailNavigationTarget(
   return source === 'FAVORITES'
     ? {
         name: BOTTOM_TAB_ROUTES.FAVORITES,
-        params: { params, screen: APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL },
+        params: {
+          initial: false,
+          params,
+          screen: APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL,
+        },
       }
     : {
         name: BOTTOM_TAB_ROUTES.HOME,
-        params: { params, screen: APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL },
+        params: {
+          initial: false,
+          params,
+          screen: APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL,
+        },
       };
 }
 
@@ -77,7 +90,7 @@ export function createRegionalGuideNavigationTarget(
 ): RegionalGuideNavigationTarget {
   return {
     name: getRegionalGuideBottomTab(params),
-    params: { params, screen: APP_SCREEN_ROUTES.REGIONAL_GUIDE },
+    params: { initial: false, params, screen: APP_SCREEN_ROUTES.REGIONAL_GUIDE },
   };
 }
 

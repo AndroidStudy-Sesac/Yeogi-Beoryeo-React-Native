@@ -9,6 +9,7 @@ describe('기능 사이 Navigation target', () => {
     expect(createItemGuideDetailNavigationTarget('glass')).toEqual({
       name: 'HomeTab',
       params: {
+        initial: false,
         params: { guideId: 'glass', source: 'SEARCH' },
         screen: 'ItemGuideDetail',
       },
@@ -21,6 +22,7 @@ describe('기능 사이 Navigation target', () => {
     ).toEqual({
       name: 'FavoritesTab',
       params: {
+        initial: false,
         params: { guideId: 'glass', source: 'FAVORITES' },
         screen: 'ItemGuideDetail',
       },
@@ -35,6 +37,7 @@ describe('기능 사이 Navigation target', () => {
     ).toEqual({
       name: 'MapTab',
       params: {
+        initial: false,
         params: { initialAddress: '서울특별시 중구' },
         screen: 'RegionalGuide',
       },
@@ -50,6 +53,7 @@ describe('기능 사이 Navigation target', () => {
     ).toEqual({
       name: 'FavoritesTab',
       params: {
+        initial: false,
         params: {
           entrySource: 'FAVORITES',
           initialFavoriteTargetId: 'regional-guide-v2|4:Sido',
@@ -62,7 +66,7 @@ describe('기능 사이 Navigation target', () => {
   it('일반 지역 가이드를 안내 탭 stack에 연결합니다', () => {
     expect(createRegionalGuideNavigationTarget()).toEqual({
       name: 'RegionalGuideTab',
-      params: { params: {}, screen: 'RegionalGuide' },
+      params: { initial: false, params: {}, screen: 'RegionalGuide' },
     });
   });
 
