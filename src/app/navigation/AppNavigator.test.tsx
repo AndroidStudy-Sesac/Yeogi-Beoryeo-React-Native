@@ -133,6 +133,14 @@ function FavoritesTestScreen() {
         }
         title="저장 품목 상세 열기"
       />
+      <Button
+        onPress={() =>
+          navigation.navigate(APP_SCREEN_ROUTES.MAP, {
+            initialSpotType: 'BATTERY_BIN',
+          })
+        }
+        title="저장 장소 지도 열기"
+      />
     </View>
   );
 }
@@ -242,6 +250,37 @@ describe('<AppNavigator />', () => {
 
     await waitFor(() => expect(getByText('지도 테스트 화면')).toBeTruthy());
   });
+
+  it.each([
+    ['저장 탭', 'Favorites', '저장 테스트 화면'],
+    ['지도 탭', 'Map', '지도 상태 0'],
+  ] as const)(
+    '저장 내부 지도에서 %s을 선택하면 해당 탭의 첫 화면을 초기화합니다',
+    async (tabLabel, rootScreen, rootText) => {
+      const { getByRole, getByText, navigation } = await renderNavigator();
+      await fireEvent.press(getByRole('button', { name: '지도 탭' }));
+      await fireEvent.press(getByRole('button', { name: '지도 상태 변경' }));
+      expect(getByText('지도 상태 1')).toBeTruthy();
+      await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+      await fireEvent.press(getByRole('button', { name: '저장 장소 지도 열기' }));
+      await waitFor(() => expect(getByText('지도 종류 BATTERY_BIN')).toBeTruthy());
+      expect(
+        getByRole('button', { name: '지도 탭' }).props.accessibilityState,
+      ).toMatchObject({ selected: true });
+      expect(
+        getByRole('button', { name: '저장 탭' }).props.accessibilityState,
+      ).toMatchObject({ selected: false });
+
+      await fireEvent.press(getByRole('button', { name: tabLabel }));
+
+      await waitFor(() => expect(getByText(rootText)).toBeTruthy());
+      expect(navigation.getCurrentRoute()).toMatchObject({ name: rootScreen });
+      expect(navigation.getCurrentRoute()?.params).toBeUndefined();
+      expect(
+        getByRole('button', { name: tabLabel }).props.accessibilityState,
+      ).toMatchObject({ selected: true });
+    },
+  );
 
   it('현재 화면이 요청한 하단 탭 표시 상태를 적용하고 이탈 시 복원합니다', async () => {
     const { getByRole, getByText, queryByRole } = await renderNavigator();

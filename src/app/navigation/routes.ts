@@ -70,11 +70,19 @@ export type MapRouteParams = {
 };
 
 export type RegionalGuideRouteParams = {
-  entrySource?: RegionalGuideEntrySource;
   initialAddress?: string;
-  initialFavoriteTargetId?: string;
   initialKeyword?: string;
-};
+} & (
+  | {
+      entrySource: RegionalGuideEntrySource;
+      initialFavoriteTargetId: string;
+    }
+  | {
+      entrySource?: never;
+      // Home summaries reopen saved guides without a Favorites entry source.
+      initialFavoriteTargetId?: string;
+    }
+);
 
 export type ItemSearchRouteParams = {
   initialQuery?: string;

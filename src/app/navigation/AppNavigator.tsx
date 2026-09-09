@@ -65,8 +65,9 @@ export function AppNavigator({ screens }: { screens: AppScreenRegistry }) {
               const targetTab = route.name;
               const shouldReset =
                 targetTab === BOTTOM_TAB_ROUTES.HOME ||
+                state.routes[state.index].key === route.key ||
                 getBottomTabNavigationAction(
-                  getCurrentBottomTab(state),
+                  getScreenSelectedBottomTab(state),
                   targetTab,
                 ) === 'RESET_TO_ROOT';
 
@@ -139,7 +140,7 @@ export function AppNavigator({ screens }: { screens: AppScreenRegistry }) {
   );
 }
 
-function getCurrentBottomTab(
+function getScreenSelectedBottomTab(
   state: BottomTabBarProps['state'],
 ): BottomTabRouteName | undefined {
   const tab = state.routes[state.index];
@@ -152,7 +153,7 @@ function getCurrentBottomTab(
 
 function AppBottomTabBar(props: BottomTabBarProps) {
   const { colors } = useTheme();
-  const selectedTab = getCurrentBottomTab(props.state);
+  const selectedTab = getScreenSelectedBottomTab(props.state);
   const descriptors = Object.fromEntries(
     Object.entries(props.descriptors).map(([key, descriptor]) => {
       const selected = descriptor.route.name === selectedTab;
