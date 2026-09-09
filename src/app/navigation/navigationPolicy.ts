@@ -1,3 +1,5 @@
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+
 import {
   APP_SCREEN_ROUTES,
   BOTTOM_TAB_ROUTES,
@@ -122,6 +124,17 @@ export function isScrollAnimatedBottomBarRoute(
     routeName === APP_SCREEN_ROUTES.ITEM_USEFUL_GUIDE ||
     routeName === APP_SCREEN_ROUTES.SETTINGS_DETAIL
   );
+}
+
+export function getScreenSelectedBottomTab(
+  state: BottomTabBarProps['state'],
+): BottomTabRouteName | undefined {
+  const tab = state.routes[state.index];
+  const stack = tab.state;
+  const screen = stack?.routes[stack.index ?? 0];
+  return screen
+    ? getSelectedBottomTab(screen as AppRouteSelection)
+    : (tab.name as BottomTabRouteName);
 }
 
 function hasText(value: string | undefined): boolean {
