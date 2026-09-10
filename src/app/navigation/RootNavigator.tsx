@@ -1,9 +1,9 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { RootStackParamList } from './routes';
+import type { BootstrapStackParamList } from './routes';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<BootstrapStackParamList>();
 
 function BootstrapScreen() {
   return (
