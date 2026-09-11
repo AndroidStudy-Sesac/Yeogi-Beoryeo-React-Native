@@ -1,9 +1,9 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { BootstrapStackParamList } from './routes';
-
-const Stack = createNativeStackNavigator<BootstrapStackParamList>();
+import { RegionalGuideScreen } from '../../features/regional-guide/presentation/RegionalGuideScreen';
+import { AppNavigator, type AppScreenRegistry } from './AppNavigator';
+import type { RegionalGuideStackParamList } from './routes';
 
 function BootstrapScreen() {
   return (
@@ -17,16 +17,33 @@ function BootstrapScreen() {
 }
 
 export function RootNavigator() {
+  return <AppNavigator screens={appScreens} />;
+}
+
+function RegionalGuideRouteScreen() {
+  const route = useRoute<
+    RouteProp<RegionalGuideStackParamList, 'RegionalGuide'>
+  >();
   return (
-    <Stack.Navigator>
-      <Stack.Screen
-        component={BootstrapScreen}
-        name="Bootstrap"
-        options={{ headerShown: false }}
-      />
-    </Stack.Navigator>
+    <RegionalGuideScreen
+      initialQuery={
+        route.params?.initialKeyword ?? route.params?.initialAddress ?? ''
+      }
+    />
   );
 }
+
+const appScreens = {
+  Favorites: BootstrapScreen,
+  ItemGuideDetail: BootstrapScreen,
+  ItemSearch: BootstrapScreen,
+  ItemUsefulGuide: BootstrapScreen,
+  Map: BootstrapScreen,
+  QuickCategorySettings: BootstrapScreen,
+  RegionalGuide: RegionalGuideRouteScreen,
+  Settings: BootstrapScreen,
+  SettingsDetail: BootstrapScreen,
+} satisfies AppScreenRegistry;
 
 const styles = StyleSheet.create({
   container: {
