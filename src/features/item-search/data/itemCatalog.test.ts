@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { ItemSearchIndex } from '../domain/itemSearch';
 import rawItems from './assets/item_disposal_guides.json';
 import rawSynonyms from './assets/synonyms.json';
 import { loadItemCatalog, parseItemGuides, parseSynonyms } from './itemCatalog';
@@ -23,6 +24,27 @@ describe('pinned Android v1.1.0 assets', () => {
     expect(new Set(items.map(({ id }) => id)).size).toBe(730);
     expect(items).toEqual(rawItems.map((item) => ({ ...item, legacyNames: item.legacyNames ?? [] })));
     expect(Object.keys(parseSynonyms(rawSynonyms))).toHaveLength(35);
+  });
+
+  test('reports exactly the known unresolved synonym targets from the pinned source', () => {
+    // Targets must resolve directly: another synonym must not hide a broken reference.
+    const directIndex = new ItemSearchIndex(parseItemGuides(rawItems), {});
+    const unresolved = Object.fromEntries(
+      Object.entries(parseSynonyms(rawSynonyms)).filter(
+        ([, target]) => directIndex.search(target).length === 0,
+      ),
+    );
+
+    // Keep v1.1.0 assets unchanged until the known defects are corrected in KAN-19:
+    // https://yeogi-beoryeo-rn.atlassian.net/browse/KAN-19
+    // Exact pairs make new defects, changed targets and stale exceptions fail CI.
+    expect(unresolved).toEqual({
+      투명병: '투명페트병',
+      쓰레기봉투: '종량제봉투',
+      음쓰: '음식물쓰레기',
+      안쓰는옷: '헌옷',
+      낡은옷: '헌옷',
+    });
   });
 
   test('reuses one catalog and resolves every stable ID to the full original detail', () => {
