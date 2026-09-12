@@ -17,6 +17,14 @@ type AdministrativeRegionRow = GuideScopeRow &
     eupmyeondongName: string;
   }>;
 
+type LegalAdminDongMappingRow = GuideScopeRow &
+  Readonly<{
+    legalCode: string;
+    legalDongName: string;
+    adminCode: string;
+    adminDongName: string;
+  }>;
+
 export type RegionCatalog = Readonly<{
   regions: readonly Region[];
   invalidRowCount: number;
@@ -38,10 +46,12 @@ export function getRegionCatalog(): RegionCatalog {
   const guideScopes: unknown = require('./regions.json');
   const administrativeRegions: unknown = require('./assets/administrativeRegions.json');
   const availability: unknown = require('./assets/regionalGuideAvailability.json');
+  const legalAdminDongMappings: unknown = require('./assets/legalToAdminMappings.json');
   regionCatalog = createRegionCatalog(
     guideScopes,
     availability,
     administrativeRegions,
+    legalAdminDongMappings,
   );
   return regionCatalog;
 }
@@ -50,12 +60,20 @@ export function createRegionCatalog(
   rawGuideScopes: unknown,
   rawAvailability: unknown,
   rawAdministrativeRegions: unknown,
+  rawLegalAdminDongMappings: unknown = [],
 ): RegionCatalog {
   const guideScopes = parseRows(rawGuideScopes, readGuideScope);
   const availability = parseRows(rawAvailability, readAvailability);
   const administrativeRegions = parseRows(
     rawAdministrativeRegions,
     readAdministrativeRegion,
+  );
+  const legalAdminDongMappings = parseRows(
+    rawLegalAdminDongMappings,
+    readLegalAdminDongMapping,
+  );
+  const legalDongAliasesByAdminCode = groupLegalDongAliases(
+    legalAdminDongMappings.values,
   );
   const sourceScopes =
     availability.values.length > 0 ? availability.values : guideScopes.values;
@@ -118,6 +136,13 @@ export function createRegionCatalog(
       availabilityRows,
       administrativeRows,
     );
+    collectLegalDongAliases(
+      searchAliasesByRegionId,
+      legalDongAliasesByAdminCode,
+      availabilityRows,
+      administrativeRows,
+      selectableRows,
+    );
   }
 
   const stableRegions = uniqueBy(regions, region => region.id);
@@ -135,7 +160,8 @@ export function createRegionCatalog(
     invalidRowCount:
       guideScopes.invalidRowCount +
       availability.invalidRowCount +
-      administrativeRegions.invalidRowCount,
+      administrativeRegions.invalidRowCount +
+      legalAdminDongMappings.invalidRowCount,
     searchAliasesByRegionId,
     findById: id => byId.get(id),
     findChildren: (level, parentId) =>
@@ -187,6 +213,39 @@ function readAdministrativeRegion(
   const eupmyeondongName = readString(row.eupmyeondongName);
   return adminCode && sidoName && sigunguName && eupmyeondongName
     ? { adminCode, sidoName, sigunguName, eupmyeondongName }
+    : undefined;
+}
+
+function readLegalAdminDongMapping(
+  row: Record<string, unknown>,
+): LegalAdminDongMappingRow | undefined {
+  const legalCode = readString(row.legalCode);
+  const legalDongName = readString(row.legalDongName);
+  const adminCode = readString(row.adminCode);
+  const sidoName = readString(row.sidoName);
+  const sigunguName =
+    readString(row.sigunguName) ??
+    (sidoName === '세종특별자치시' ? '없음' : undefined);
+  const adminDongName = readString(row.adminDongName);
+  const hasValidCodes =
+    legalCode &&
+    adminCode &&
+    /^\d{10}$/.test(legalCode) &&
+    /^\d{10}$/.test(adminCode) &&
+    legalCode.slice(0, 5) === adminCode.slice(0, 5);
+  return hasValidCodes &&
+    legalDongName &&
+    sidoName &&
+    sigunguName &&
+    adminDongName
+    ? {
+        legalCode,
+        legalDongName,
+        adminCode,
+        sidoName,
+        sigunguName,
+        adminDongName,
+      }
     : undefined;
 }
 
@@ -317,6 +376,94 @@ function collectSearchAliases(
       uniqueStrings([...currentAliases, ...aliases]),
     );
   }
+}
+
+function collectLegalDongAliases(
+  aliasesByRegionId: Map<string, string[]>,
+  legalDongAliasesByAdminCode: ReadonlyMap<string, readonly string[]>,
+  availabilityRows: readonly AvailabilityRow[],
+  administrativeRows: readonly AdministrativeRegionRow[],
+  selectableRows: readonly AdministrativeRegionRow[],
+): void {
+  const preferredAdminCodesByAlias = collectPreferredAdminCodesByAlias(
+    availabilityRows,
+    administrativeRows,
+  );
+  const numberedDongAliases = new Set(
+    selectableRows
+      .map(row => unnumberedDongAlias(row.eupmyeondongName))
+      .filter((name): name is string => Boolean(name)),
+  );
+
+  for (const selectableRow of selectableRows) {
+    const legalDongAliases = legalDongAliasesByAdminCode.get(
+      selectableRow.adminCode,
+    );
+    if (!legalDongAliases) continue;
+
+    const applicableAliases = legalDongAliases.filter(alias => {
+      const comparableAlias = removeOrdinal(normalizeCoverageName(alias));
+      if (numberedDongAliases.has(comparableAlias)) return false;
+
+      const preferredAdminCodes = preferredAdminCodesByAlias.get(
+        comparableAlias,
+      );
+      return (
+        !preferredAdminCodes || preferredAdminCodes.has(selectableRow.adminCode)
+      );
+    });
+    if (applicableAliases.length === 0) continue;
+
+    const regionId = `eupmyeondong:${selectableRow.adminCode}`;
+    const currentAliases = aliasesByRegionId.get(regionId) ?? [];
+    aliasesByRegionId.set(
+      regionId,
+      uniqueStrings([...currentAliases, ...applicableAliases]),
+    );
+  }
+}
+
+function collectPreferredAdminCodesByAlias(
+  availabilityRows: readonly AvailabilityRow[],
+  administrativeRows: readonly AdministrativeRegionRow[],
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const adminCodesByAlias = new Map<string, Set<string>>();
+  for (const availabilityRow of availabilityRows) {
+    const coveredAdminCodes = administrativeRows
+      .filter(row => coversAdministrativeRegion(availabilityRow, row))
+      .map(row => row.adminCode);
+    if (coveredAdminCodes.length === 0) continue;
+
+    for (const alias of coverageValueTokens(availabilityRow.targetRegionName)) {
+      if (!isRegionNameToken(alias)) continue;
+
+      const comparableAlias = removeOrdinal(normalizeCoverageName(alias));
+      const adminCodes = adminCodesByAlias.get(comparableAlias) ?? new Set();
+      coveredAdminCodes.forEach(adminCode => adminCodes.add(adminCode));
+      adminCodesByAlias.set(comparableAlias, adminCodes);
+    }
+  }
+  return adminCodesByAlias;
+}
+
+function unnumberedDongAlias(value: string): string | undefined {
+  const comparableName = removeOrdinal(normalizeCoverageName(value));
+  const numberedDong = /^(.+?)\d+동$/.exec(comparableName);
+  return numberedDong ? `${numberedDong[1]}동` : undefined;
+}
+
+function groupLegalDongAliases(
+  mappings: readonly LegalAdminDongMappingRow[],
+): ReadonlyMap<string, readonly string[]> {
+  const aliasesByAdminCode = new Map<string, string[]>();
+  for (const mapping of mappings) {
+    const aliases = aliasesByAdminCode.get(mapping.adminCode) ?? [];
+    aliasesByAdminCode.set(
+      mapping.adminCode,
+      uniqueStrings([...aliases, mapping.legalDongName]),
+    );
+  }
+  return aliasesByAdminCode;
 }
 
 function isRegionNameToken(value: string): boolean {

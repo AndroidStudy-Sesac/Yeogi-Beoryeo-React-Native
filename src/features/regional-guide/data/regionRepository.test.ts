@@ -45,9 +45,19 @@ describe('지역 asset repository', () => {
           eupmyeondongName: '',
         },
       ],
+      [
+        {
+          legalCode: 'invalid',
+          legalDongName: '역삼동',
+          adminCode: '',
+          sidoName: '서울특별시',
+          sigunguName: '강남구',
+          adminDongName: '역삼1동',
+        },
+      ],
     );
 
-    expect(catalog.invalidRowCount).toBe(2);
+    expect(catalog.invalidRowCount).toBe(3);
     expect(catalog.regions.map(region => region.name)).toEqual([
       '서울특별시',
       '강남구',
@@ -144,6 +154,43 @@ describe('지역 asset repository', () => {
     expect(catalog.searchAliasesByRegionId.get(gujeuk?.id ?? '')).toEqual([
       '송강동',
       '봉산동',
+    ]);
+  });
+
+  it('관리구역 표기와 무관하게 원본 법정동 매핑을 검색 별칭으로 연결합니다', () => {
+    const catalog = createRegionCatalog(
+      [{ sidoName: '전남광주통합특별시', sigunguName: '목포시' }],
+      [
+        {
+          sidoName: '전남광주통합특별시',
+          sigunguName: '목포시',
+          managementZoneName: '1권역',
+          targetRegionName: '삼향동+석현동',
+        },
+      ],
+      [
+        {
+          adminCode: '1211078000',
+          sidoName: '전남광주통합특별시',
+          sigunguName: '목포시',
+          eupmyeondongName: '삼향동',
+        },
+      ],
+      [
+        {
+          legalCode: '1211016000',
+          legalDongName: '석현동',
+          adminCode: '1211078000',
+          sidoName: '전남광주통합특별시',
+          sigunguName: '목포시',
+          adminDongName: '삼향동',
+        },
+      ],
+    );
+    const samhyang = catalog.regions.find(region => region.name === '삼향동');
+
+    expect(catalog.searchAliasesByRegionId.get(samhyang?.id ?? '')).toEqual([
+      '석현동',
     ]);
   });
 });

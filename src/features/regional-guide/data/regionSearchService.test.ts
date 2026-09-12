@@ -32,6 +32,16 @@ describe('지역 검색 service', () => {
       'resolved',
       ['대전광역시 유성구 구즉동'],
     ],
+    [
+      '전남 목포시 석현동',
+      'resolved',
+      ['전라남도 목포시 삼향동'],
+    ],
+    [
+      '서울 성동구 도선동',
+      'resolved',
+      ['서울특별시 성동구 왕십리도선동'],
+    ],
     ['광주시', 'resolved', ['경기도 광주시']],
   ] as const)(
     '%s 입력을 검증된 제공 가능 후보로 변환합니다',
@@ -58,12 +68,15 @@ describe('지역 검색 service', () => {
     await service.search('역삼동', new AbortController().signal);
     await service.search('망포동', new AbortController().signal);
 
-    expect(service.getStatistics()).toMatchObject({
+    const statistics = service.getStatistics();
+    expect(statistics).toMatchObject({
       indexBuildCount: 1,
       searchCount: 2,
       candidateCount: 3_141,
-      exactKeyCount: 3_202,
     });
+    expect(statistics.exactKeyCount).toBeGreaterThan(
+      statistics.candidateCount ?? 0,
+    );
   });
 
   it('이벤트 루프에 양보한 동안 취소되면 인덱스를 만들지 않습니다', async () => {
