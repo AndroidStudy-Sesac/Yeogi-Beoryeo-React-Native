@@ -84,6 +84,48 @@ describe('useRegionSearch', () => {
     await unmount();
     expect(signal?.aborted).toBe(true);
   });
+
+  it('새 initialQuery가 전달되면 이전 요청을 취소하고 다시 검색합니다', async () => {
+    let firstSignal: AbortSignal | undefined;
+    const service: RegionSearchService = {
+      search: jest.fn((query, signal) => {
+        if (query === '서울 강남구') {
+          firstSignal = signal;
+          return new Promise(() => undefined);
+        }
+        return Promise.resolve(resolvedResult('부산광역시 사하구'));
+      }),
+      getStatistics: () => ({ indexBuildCount: 0, searchCount: 0 }),
+    };
+    const { result, rerender } = await renderHook<
+      ReturnType<typeof useRegionSearch>,
+      { initialQuery: string }
+    >(
+      ({ initialQuery }) =>
+        useRegionSearch({ service, initialQuery, debounceMilliseconds: 300 }),
+      { initialProps: { initialQuery: '서울 강남구' } },
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+    expect(firstSignal?.aborted).toBe(false);
+
+    await rerender({ initialQuery: '부산 사하구' });
+    expect(firstSignal?.aborted).toBe(true);
+    expect(result.current.query).toBe('부산 사하구');
+    expect(result.current.state.status).toBe('idle');
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+    expect(result.current.state).toMatchObject({
+      status: 'resolved',
+      candidate: { displayName: '부산광역시 사하구' },
+    });
+  });
 });
 
 function resolvedService(displayName: string): jest.Mocked<RegionSearchService> {

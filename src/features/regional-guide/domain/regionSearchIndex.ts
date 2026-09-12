@@ -30,6 +30,7 @@ type IndexedCandidate = Readonly<{
   sigunguName?: string;
   eupmyeondongName?: string;
   unnumberedDongName?: string;
+  searchAliases: readonly string[];
 }>;
 
 export type RegionSearchIndex = Readonly<{
@@ -60,8 +61,11 @@ export function classifyRegionSearchInput(
 
 export function createRegionSearchIndex(
   regions: readonly Region[],
+  searchAliasesByRegionId: ReadonlyMap<string, readonly string[]> = new Map(),
 ): RegionSearchIndex {
-  const candidates = createCandidates(regions).map(indexCandidate);
+  const candidates = createCandidates(regions).map(candidate =>
+    indexCandidate(candidate, searchAliasesByRegionId),
+  );
   const candidatesByExactKey = new Map<string, IndexedCandidate[]>();
 
   for (const indexedCandidate of candidates) {
@@ -166,7 +170,10 @@ function toCandidate(selection: RegionSelection): RegionSearchCandidate {
   };
 }
 
-function indexCandidate(candidate: RegionSearchCandidate): IndexedCandidate {
+function indexCandidate(
+  candidate: RegionSearchCandidate,
+  searchAliasesByRegionId: ReadonlyMap<string, readonly string[]>,
+): IndexedCandidate {
   const { sido, sigungu, eupmyeondong } = candidate.region;
   const eupmyeondongName = eupmyeondong
     ? normalizeRegionName(eupmyeondong.name)
@@ -174,6 +181,12 @@ function indexCandidate(candidate: RegionSearchCandidate): IndexedCandidate {
   const numberedDong = eupmyeondongName
     ? NUMBERED_DONG.exec(eupmyeondongName)
     : undefined;
+  const searchAliases = uniqueStrings(
+    (eupmyeondong
+      ? (searchAliasesByRegionId.get(eupmyeondong.id) ?? [])
+      : []
+    ).map(normalizeRegionName),
+  );
   return {
     candidate,
     canonicalSidoName: normalizeSidoName(sido?.name, sigungu?.name),
@@ -181,6 +194,7 @@ function indexCandidate(candidate: RegionSearchCandidate): IndexedCandidate {
     sigunguName: sigungu ? normalizeRegionName(sigungu.name) : undefined,
     eupmyeondongName,
     unnumberedDongName: numberedDong ? `${numberedDong[1]}동` : undefined,
+    searchAliases,
   };
 }
 
@@ -191,6 +205,7 @@ function exactKeys(candidate: IndexedCandidate): string[] {
     candidate.sigunguName,
     candidate.eupmyeondongName,
     candidate.unnumberedDongName,
+    ...candidate.searchAliases,
   ]);
 }
 
@@ -289,7 +304,8 @@ function matchesEupmyeondong(
   return (
     name === query ||
     name.startsWith(query) ||
-    candidate.unnumberedDongName === query
+    candidate.unnumberedDongName === query ||
+    candidate.searchAliases.includes(query)
   );
 }
 
@@ -297,7 +313,8 @@ function includesKeyword(candidate: IndexedCandidate, keyword: string): boolean 
   const normalizedKeyword = normalizeRegionName(keyword);
   return (
     comparableNames(candidate).some(name => name.includes(normalizedKeyword)) ||
-    candidate.unnumberedDongName === normalizedKeyword
+    candidate.unnumberedDongName === normalizedKeyword ||
+    candidate.searchAliases.some(alias => alias.includes(normalizedKeyword))
   );
 }
 
@@ -330,7 +347,9 @@ function selectBestMatches(
 function matchScore(candidate: IndexedCandidate, keyword: string): number {
   const query = normalizeRegionName(keyword);
   const names = comparableNames(candidate);
-  if (names.includes(query)) return 0;
+  if (names.includes(query) || candidate.searchAliases.includes(query)) {
+    return 0;
+  }
   if (candidate.unnumberedDongName === query) return 1;
   if (names.some(name => name.startsWith(query))) return 2;
   return 3;

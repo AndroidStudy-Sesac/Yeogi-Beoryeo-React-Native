@@ -52,6 +52,7 @@ export function useRegionSearch({
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const controllerRef = useRef<AbortController | undefined>(undefined);
   const requestVersionRef = useRef(0);
+  const previousInitialQueryRef = useRef(initialQuery);
 
   const clearTimer = useCallback(() => {
     if (!timerRef.current) return;
@@ -153,6 +154,12 @@ export function useRegionSearch({
     },
     [clearTimer, invalidateActiveRequest],
   );
+
+  useEffect(() => {
+    if (previousInitialQueryRef.current === initialQuery) return;
+    previousInitialQueryRef.current = initialQuery;
+    setQuery(initialQuery);
+  }, [initialQuery, setQuery]);
 
   const cancel = useCallback(() => {
     clearTimer();

@@ -20,6 +20,7 @@ type AdministrativeRegionRow = GuideScopeRow &
 export type RegionCatalog = Readonly<{
   regions: readonly Region[];
   invalidRowCount: number;
+  searchAliasesByRegionId: ReadonlyMap<string, readonly string[]>;
   findById(id: string): Region | undefined;
   findChildren(level: RegionLevel, parentId?: string): readonly Region[];
 }>;
@@ -75,6 +76,7 @@ export function createRegionCatalog(
     }));
 
   const regions: Region[] = [...sidoRegions];
+  const searchAliasesByRegionId = new Map<string, string[]>();
   for (const scope of [...scopes].sort(compareScopes)) {
     const administrativeRows = administrativeRegions.values.filter(row =>
       belongsToScope(scope, row),
@@ -111,6 +113,11 @@ export function createRegionCatalog(
         parentId: sigunguId,
       }));
     regions.push(...eupmyeondongRegions);
+    collectSearchAliases(
+      searchAliasesByRegionId,
+      availabilityRows,
+      administrativeRows,
+    );
   }
 
   const stableRegions = uniqueBy(regions, region => region.id);
@@ -129,6 +136,7 @@ export function createRegionCatalog(
       guideScopes.invalidRowCount +
       availability.invalidRowCount +
       administrativeRegions.invalidRowCount,
+    searchAliasesByRegionId,
     findById: id => byId.get(id),
     findChildren: (level, parentId) =>
       childrenByParent.get(childKey(level, parentId)) ?? [],
@@ -224,32 +232,99 @@ function coversAdministrativeRegion(
   availabilityRow: AvailabilityRow,
   administrativeRow: AdministrativeRegionRow,
 ): boolean {
-  const administrativeName = normalizeCoverageName(
-    administrativeRow.eupmyeondongName,
+  return coverageTokens(availabilityRow).some(token =>
+    matchesCoverageToken(token, administrativeRow.eupmyeondongName),
   );
-  return coverageTokens(availabilityRow).some(token => {
-    const withoutOrdinal = token.replace(/제(?=\d)/g, '');
-    const administrativeWithoutOrdinal = administrativeName.replace(
-      /제(?=\d)/g,
-      '',
-    );
-    return (
-      token === administrativeName ||
-      withoutOrdinal === administrativeWithoutOrdinal ||
-      (token === '동지역' && administrativeName.endsWith('동')) ||
-      (token === '읍면지역' && /[읍면]$/.test(administrativeName))
-    );
-  });
 }
 
 function coverageTokens(row: AvailabilityRow): string[] {
-  return [row.managementZoneName, row.targetRegionName]
-    .flatMap(value => value.split(/[,+/]/))
-    .map(normalizeCoverageName);
+  return [row.managementZoneName, row.targetRegionName].flatMap(
+    coverageValueTokens,
+  );
+}
+
+function coverageValueTokens(value: string): string[] {
+  return value.split(/[,+/]/).map(normalizeCoverageName);
 }
 
 function normalizeCoverageName(value: string): string {
   return value.replace(/\s/g, '').trim();
+}
+
+function matchesCoverageToken(
+  token: string,
+  administrativeName: string,
+): boolean {
+  const comparableToken = removeOrdinal(normalizeCoverageName(token));
+  const comparableAdministrativeName = removeOrdinal(
+    normalizeCoverageName(administrativeName),
+  );
+  if (comparableToken === comparableAdministrativeName) return true;
+  if (
+    comparableToken === '동지역' &&
+    comparableAdministrativeName.endsWith('동')
+  ) {
+    return true;
+  }
+  if (
+    comparableToken === '읍면지역' &&
+    /[읍면]$/.test(comparableAdministrativeName)
+  ) {
+    return true;
+  }
+
+  const range = /^(.+?)(\d+)동?~(\d+)동$/.exec(comparableToken);
+  const numberedRegion = /^(.+?)(\d+)동$/.exec(
+    comparableAdministrativeName,
+  );
+  if (!range || !numberedRegion || range[1] !== numberedRegion[1]) {
+    return false;
+  }
+
+  const first = Number(range[2]);
+  const last = Number(range[3]);
+  const ordinal = Number(numberedRegion[2]);
+  return ordinal >= Math.min(first, last) && ordinal <= Math.max(first, last);
+}
+
+function collectSearchAliases(
+  aliasesByRegionId: Map<string, string[]>,
+  availabilityRows: readonly AvailabilityRow[],
+  administrativeRows: readonly AdministrativeRegionRow[],
+): void {
+  for (const availabilityRow of availabilityRows) {
+    const managementRegions = administrativeRows.filter(administrativeRow =>
+      coverageValueTokens(availabilityRow.managementZoneName).some(token =>
+        matchesCoverageToken(token, administrativeRow.eupmyeondongName),
+      ),
+    );
+    if (managementRegions.length !== 1) continue;
+
+    const aliases = coverageValueTokens(availabilityRow.targetRegionName)
+      .filter(isRegionNameToken)
+      .filter(
+        alias =>
+          !administrativeRows.some(administrativeRow =>
+            matchesCoverageToken(alias, administrativeRow.eupmyeondongName),
+          ),
+      );
+    if (aliases.length === 0) continue;
+
+    const regionId = `eupmyeondong:${managementRegions[0].adminCode}`;
+    const currentAliases = aliasesByRegionId.get(regionId) ?? [];
+    aliasesByRegionId.set(
+      regionId,
+      uniqueStrings([...currentAliases, ...aliases]),
+    );
+  }
+}
+
+function isRegionNameToken(value: string): boolean {
+  return /^[가-힣0-9.]+[읍면동]$/.test(value);
+}
+
+function removeOrdinal(value: string): string {
+  return value.replace(/제(?=\d)/g, '');
 }
 
 function normalizeSigungu(value: string): string {
@@ -275,6 +350,10 @@ function uniqueBy<T>(
   const uniqueValues = new Map<string, T>();
   for (const value of values) uniqueValues.set(selectKey(value), value);
   return [...uniqueValues.values()];
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)];
 }
 
 function compareBy<T>(

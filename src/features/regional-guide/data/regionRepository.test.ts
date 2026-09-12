@@ -8,7 +8,7 @@ describe('지역 asset repository', () => {
     expect(second).toBe(first);
     expect(first.invalidRowCount).toBe(0);
     expect(first.findChildren('sido')).toHaveLength(16);
-    expect(first.regions).toHaveLength(3_148);
+    expect(first.regions).toHaveLength(3_157);
   });
 
   it('잘못된 행은 제외하고 유효한 제공 지역으로 실행을 유지합니다', () => {
@@ -90,4 +90,69 @@ describe('지역 asset repository', () => {
         .map(region => region.name),
     ).toEqual(['번1동', '번2동']);
   });
+
+  it('번호 범위와 제 표기를 제공 가능한 행정동에 연결합니다', () => {
+    const catalog = createRegionCatalog(
+      [{ sidoName: '부산광역시', sigunguName: '사하구' }],
+      [
+        {
+          sidoName: '부산광역시',
+          sigunguName: '사하구',
+          managementZoneName: '1구역',
+          targetRegionName: '괴정 1~3동, 하단 1~2동',
+        },
+      ],
+      [
+        administrativeRow('1111111111', '괴정제1동'),
+        administrativeRow('1111111112', '괴정제3동'),
+        administrativeRow('1111111113', '괴정제4동'),
+        administrativeRow('1111111114', '하단제2동'),
+      ],
+    );
+    const sido = catalog.findChildren('sido')[0];
+    const sigungu = catalog.findChildren('sigungu', sido.id)[0];
+
+    expect(
+      catalog
+        .findChildren('eupmyeondong', sigungu.id)
+        .map(region => region.name),
+    ).toEqual(['괴정제1동', '괴정제3동', '하단제2동']);
+  });
+
+  it('법정동을 제공 행정동의 검색 별칭으로 연결합니다', () => {
+    const catalog = createRegionCatalog(
+      [{ sidoName: '대전광역시', sigunguName: '유성구' }],
+      [
+        {
+          sidoName: '대전광역시',
+          sigunguName: '유성구',
+          managementZoneName: '구즉동',
+          targetRegionName: '송강동+봉산동',
+        },
+      ],
+      [
+        {
+          adminCode: '3020058000',
+          sidoName: '대전광역시',
+          sigunguName: '유성구',
+          eupmyeondongName: '구즉동',
+        },
+      ],
+    );
+    const gujeuk = catalog.regions.find(region => region.name === '구즉동');
+
+    expect(catalog.searchAliasesByRegionId.get(gujeuk?.id ?? '')).toEqual([
+      '송강동',
+      '봉산동',
+    ]);
+  });
 });
+
+function administrativeRow(adminCode: string, eupmyeondongName: string) {
+  return {
+    adminCode,
+    sidoName: '부산광역시',
+    sigunguName: '사하구',
+    eupmyeondongName,
+  };
+}

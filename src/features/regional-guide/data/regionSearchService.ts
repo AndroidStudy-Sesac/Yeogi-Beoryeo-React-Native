@@ -31,7 +31,11 @@ export function createRegionSearchService(
       throwIfAborted(signal);
 
       if (!index) {
-        index = createRegionSearchIndex(loadCatalog().regions);
+        const catalog = loadCatalog();
+        index = createRegionSearchIndex(
+          catalog.regions,
+          catalog.searchAliasesByRegionId,
+        );
         indexBuildCount += 1;
       }
       throwIfAborted(signal);

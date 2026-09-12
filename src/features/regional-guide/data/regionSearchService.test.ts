@@ -22,6 +22,17 @@ describe('지역 검색 service', () => {
       'candidates',
       ['경기도 수원시 망포1동', '경기도 수원시 망포2동'],
     ],
+    [
+      '부산 사하구 괴정1동',
+      'resolved',
+      ['부산광역시 사하구 괴정제1동'],
+    ],
+    [
+      '대전 유성구 봉산동',
+      'resolved',
+      ['대전광역시 유성구 구즉동'],
+    ],
+    ['광주시', 'resolved', ['경기도 광주시']],
   ] as const)(
     '%s 입력을 검증된 제공 가능 후보로 변환합니다',
     async (query, expectedStatus, expectedNames) => {
@@ -50,8 +61,8 @@ describe('지역 검색 service', () => {
     expect(service.getStatistics()).toMatchObject({
       indexBuildCount: 1,
       searchCount: 2,
-      candidateCount: 3_132,
-      exactKeyCount: 3_097,
+      candidateCount: 3_141,
+      exactKeyCount: 3_202,
     });
   });
 

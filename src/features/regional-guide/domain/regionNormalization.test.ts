@@ -1,4 +1,5 @@
 import {
+  isSidoName,
   normalizeRegionName,
   normalizeSidoName,
 } from './regionNormalization';
@@ -17,5 +18,10 @@ describe('지역명 정규화', () => {
 
   it('행정동 ordinal과 중점 표기를 비교 가능한 이름으로 만듭니다', () => {
     expect(normalizeRegionName(' 종로  제1·2동 ')).toBe('종로1.2동');
+  });
+
+  it('광주는 시도 별칭으로, 광주시는 시군구 이름으로 구분합니다', () => {
+    expect(isSidoName('광주')).toBe(true);
+    expect(isSidoName('광주시')).toBe(false);
   });
 });
