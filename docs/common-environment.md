@@ -12,7 +12,7 @@
 | --- | --- |
 | Node.js | 24.14.0 |
 | npm | 11.9.0 |
-| Expo SDK | 57.0.21 |
+| Expo SDK | 57.0.22 |
 | React Native | 0.86.3 |
 | React | 19.2.3 |
 | TypeScript | 6.0.3 |
