@@ -34,8 +34,45 @@ describe('지역 검색 service', () => {
     ],
     [
       '전남 목포시 석현동',
+      'candidates',
+      [
+        '전라남도 목포시 삼향동',
+        '전라남도 목포시 상동',
+      ],
+    ],
+    [
+      '전북 군산시 경장동',
       'resolved',
-      ['전라남도 목포시 삼향동'],
+      ['전북특별자치도 군산시 조촌동'],
+    ],
+    [
+      '서울 서대문구 홍제동',
+      'candidates',
+      [
+        '서울특별시 서대문구 홍제제1동',
+        '서울특별시 서대문구 홍제제2동',
+        '서울특별시 서대문구 홍제제3동',
+      ],
+    ],
+    [
+      '서울 서대문구 홍제1동',
+      'resolved',
+      ['서울특별시 서대문구 홍제제1동'],
+    ],
+    [
+      '부산 연제구 거제동',
+      'candidates',
+      [
+        '부산광역시 연제구 거제제1동',
+        '부산광역시 연제구 거제제2동',
+        '부산광역시 연제구 거제제3동',
+        '부산광역시 연제구 거제제4동',
+      ],
+    ],
+    [
+      '부산 연제구 거제1동',
+      'resolved',
+      ['부산광역시 연제구 거제제1동'],
     ],
     [
       '서울 성동구 도선동',
@@ -72,7 +109,7 @@ describe('지역 검색 service', () => {
     expect(statistics).toMatchObject({
       indexBuildCount: 1,
       searchCount: 2,
-      candidateCount: 3_141,
+      candidateCount: 3_181,
     });
     expect(statistics.exactKeyCount).toBeGreaterThan(
       statistics.candidateCount ?? 0,

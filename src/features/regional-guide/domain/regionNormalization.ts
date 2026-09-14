@@ -34,6 +34,9 @@ const OFFICIAL_SIDO_NAMES = new Set([
   '전남광주통합특별시',
 ]);
 const GWANGJU_DISTRICTS = new Set(['동구', '서구', '남구', '북구', '광산구']);
+const NUMERIC_COMPOSITE_DONG = /^([^\d]+?)(\d+)\.(\d+)([^\d]*동)$/;
+const NUMBER_MARKER = /제(?=\d)/g;
+const NUMBERED_DONG = /^(.+?)\d+동$/;
 
 export function normalizeSidoName(
   value: string | undefined,
@@ -62,6 +65,54 @@ export function normalizeRegionName(value: string): string {
     .normalize('NFC')
     .replace(/[·ㆍ]/g, '.')
     .replace(/\s+/g, '')
-    .replace(/제(?=\d)/g, '')
     .trim();
+}
+
+export function createComparableRegionNames(
+  value: string | undefined,
+): readonly string[] {
+  if (!value) return [];
+
+  const normalizedName = normalizeRegionName(value);
+  if (!normalizedName) return [];
+
+  const comparableNames = new Set([normalizedName]);
+  const numericComposite = NUMERIC_COMPOSITE_DONG.exec(normalizedName);
+  if (numericComposite) {
+    const [, prefix, firstNumber, secondNumber, suffix] = numericComposite;
+    comparableNames.add(`${prefix}${firstNumber}${suffix}`);
+    comparableNames.add(`${prefix}${secondNumber}${suffix}`);
+  }
+
+  if (
+    normalizedName.includes('.') &&
+    !/\d/.test(normalizedName) &&
+    normalizedName.endsWith('동')
+  ) {
+    comparableNames.add(
+      normalizedName
+        .split('.')
+        .filter(Boolean)
+        .join(''),
+    );
+  }
+
+  const withoutNumberMarker = normalizedName.replace(NUMBER_MARKER, '');
+  if (withoutNumberMarker !== normalizedName) {
+    comparableNames.add(withoutNumberMarker);
+  }
+  return [...comparableNames];
+}
+
+export function createNumberOmittedDongName(
+  value: string | undefined,
+): string | undefined {
+  if (!value) return undefined;
+
+  const withoutNumberMarker = normalizeRegionName(value).replace(
+    NUMBER_MARKER,
+    '',
+  );
+  const numberedDong = NUMBERED_DONG.exec(withoutNumberMarker);
+  return numberedDong ? `${numberedDong[1]}동` : undefined;
 }

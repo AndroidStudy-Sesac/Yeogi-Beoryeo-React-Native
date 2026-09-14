@@ -5,6 +5,8 @@ import type {
   RegionSearchResult,
 } from './RegionSearch';
 import {
+  createComparableRegionNames,
+  createNumberOmittedDongName,
   isSidoName,
   normalizeRegionName,
   normalizeSidoName,
@@ -14,7 +16,6 @@ const ADDRESS_NUMBER = /^\d+(?:-\d+)?$/;
 const ROAD_NAME = /(?:로|길)\d*$/;
 const SIGUNGU_SUFFIX = /[시군구]$/;
 const EUPMYEONDONG_SUFFIX = /[읍면동]$/;
-const NUMBERED_DONG = /^(.+?)(?:제)?\d+동$/;
 
 type ParsedQuery = Readonly<{
   sidoName?: string;
@@ -29,6 +30,7 @@ type IndexedCandidate = Readonly<{
   sidoName?: string;
   sigunguName?: string;
   eupmyeondongName?: string;
+  comparableEupmyeondongNames: readonly string[];
   unnumberedDongName?: string;
   searchAliases: readonly string[];
 }>;
@@ -178,9 +180,9 @@ function indexCandidate(
   const eupmyeondongName = eupmyeondong
     ? normalizeRegionName(eupmyeondong.name)
     : undefined;
-  const numberedDong = eupmyeondongName
-    ? NUMBERED_DONG.exec(eupmyeondongName)
-    : undefined;
+  const comparableEupmyeondongNames = createComparableRegionNames(
+    eupmyeondong?.name,
+  );
   const searchAliases = uniqueStrings(
     (eupmyeondong
       ? (searchAliasesByRegionId.get(eupmyeondong.id) ?? [])
@@ -193,7 +195,8 @@ function indexCandidate(
     sidoName: sido ? normalizeRegionName(sido.name) : undefined,
     sigunguName: sigungu ? normalizeRegionName(sigungu.name) : undefined,
     eupmyeondongName,
-    unnumberedDongName: numberedDong ? `${numberedDong[1]}동` : undefined,
+    comparableEupmyeondongNames,
+    unnumberedDongName: createNumberOmittedDongName(eupmyeondong?.name),
     searchAliases,
   };
 }
@@ -203,7 +206,7 @@ function exactKeys(candidate: IndexedCandidate): string[] {
     candidate.canonicalSidoName,
     candidate.sidoName,
     candidate.sigunguName,
-    candidate.eupmyeondongName,
+    ...candidate.comparableEupmyeondongNames,
     candidate.unnumberedDongName,
     ...candidate.searchAliases,
   ]);
@@ -298,12 +301,12 @@ function matchesEupmyeondong(
   candidate: IndexedCandidate,
   queryName: string,
 ): boolean {
-  const name = candidate.eupmyeondongName;
-  if (!name) return false;
+  if (!candidate.eupmyeondongName) return false;
   const query = normalizeRegionName(queryName);
   return (
-    name === query ||
-    name.startsWith(query) ||
+    candidate.comparableEupmyeondongNames.some(
+      name => name === query || name.startsWith(query),
+    ) ||
     candidate.unnumberedDongName === query ||
     candidate.searchAliases.includes(query)
   );
@@ -359,7 +362,7 @@ function comparableNames(candidate: IndexedCandidate): string[] {
   return uniqueStrings([
     candidate.sidoName,
     candidate.sigunguName,
-    candidate.eupmyeondongName,
+    ...candidate.comparableEupmyeondongNames,
   ]);
 }
 

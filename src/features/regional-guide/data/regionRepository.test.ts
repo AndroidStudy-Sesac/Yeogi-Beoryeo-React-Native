@@ -8,7 +8,7 @@ describe('지역 asset repository', () => {
     expect(second).toBe(first);
     expect(first.invalidRowCount).toBe(0);
     expect(first.findChildren('sido')).toHaveLength(16);
-    expect(first.regions).toHaveLength(3_157);
+    expect(first.regions).toHaveLength(3_197);
   });
 
   it('잘못된 행은 제외하고 유효한 제공 지역으로 실행을 유지합니다', () => {
@@ -129,6 +129,42 @@ describe('지역 asset repository', () => {
     ).toEqual(['괴정제1동', '괴정제3동', '하단제2동']);
   });
 
+  it('지명에 포함된 제를 보존해 제공 가능한 번호 행정동에 연결합니다', () => {
+    const catalog = createRegionCatalog(
+      [{ sidoName: '서울특별시', sigunguName: '서대문구' }],
+      [
+        {
+          sidoName: '서울특별시',
+          sigunguName: '서대문구',
+          managementZoneName: '1구역',
+          targetRegionName: '홍제1동',
+        },
+      ],
+      [
+        {
+          adminCode: '1141062000',
+          sidoName: '서울특별시',
+          sigunguName: '서대문구',
+          eupmyeondongName: '홍제제1동',
+        },
+        {
+          adminCode: '1141064000',
+          sidoName: '서울특별시',
+          sigunguName: '서대문구',
+          eupmyeondongName: '홍제제3동',
+        },
+      ],
+    );
+    const sido = catalog.findChildren('sido')[0];
+    const sigungu = catalog.findChildren('sigungu', sido.id)[0];
+
+    expect(
+      catalog
+        .findChildren('eupmyeondong', sigungu.id)
+        .map(region => region.name),
+    ).toEqual(['홍제제1동']);
+  });
+
   it('법정동을 제공 행정동의 검색 별칭으로 연결합니다', () => {
     const catalog = createRegionCatalog(
       [{ sidoName: '대전광역시', sigunguName: '유성구' }],
@@ -191,6 +227,49 @@ describe('지역 asset repository', () => {
 
     expect(catalog.searchAliasesByRegionId.get(samhyang?.id ?? '')).toEqual([
       '석현동',
+    ]);
+  });
+
+  it('법정동과 행정동의 안내 권역이 달라도 원본 매핑을 유지합니다', () => {
+    const catalog = createRegionCatalog(
+      [{ sidoName: '전북특별자치도', sigunguName: '군산시' }],
+      [
+        {
+          sidoName: '전북특별자치도',
+          sigunguName: '군산시',
+          managementZoneName: '1권역',
+          targetRegionName: '경장동',
+        },
+        {
+          sidoName: '전북특별자치도',
+          sigunguName: '군산시',
+          managementZoneName: '2권역',
+          targetRegionName: '조촌동',
+        },
+      ],
+      [
+        {
+          adminCode: '5213065000',
+          sidoName: '전북특별자치도',
+          sigunguName: '군산시',
+          eupmyeondongName: '조촌동',
+        },
+      ],
+      [
+        {
+          legalCode: '5213013500',
+          legalDongName: '경장동',
+          adminCode: '5213065000',
+          sidoName: '전북특별자치도',
+          sigunguName: '군산시',
+          adminDongName: '조촌동',
+        },
+      ],
+    );
+    const jochon = catalog.regions.find(region => region.name === '조촌동');
+
+    expect(catalog.searchAliasesByRegionId.get(jochon?.id ?? '')).toEqual([
+      '경장동',
     ]);
   });
 });

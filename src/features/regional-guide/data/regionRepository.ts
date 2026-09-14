@@ -1,4 +1,9 @@
 import type { Region, RegionLevel } from '../domain/Region';
+import {
+  createComparableRegionNames,
+  createNumberOmittedDongName,
+  normalizeRegionName,
+} from '../domain/regionNormalization';
 
 type GuideScopeRow = Readonly<{
   sidoName: string;
@@ -139,8 +144,6 @@ export function createRegionCatalog(
     collectLegalDongAliases(
       searchAliasesByRegionId,
       legalDongAliasesByAdminCode,
-      availabilityRows,
-      administrativeRows,
       selectableRows,
     );
   }
@@ -307,43 +310,68 @@ function coverageValueTokens(value: string): string[] {
 }
 
 function normalizeCoverageName(value: string): string {
-  return value.replace(/\s/g, '').trim();
+  return normalizeRegionName(value);
 }
 
 function matchesCoverageToken(
   token: string,
   administrativeName: string,
 ): boolean {
-  const comparableToken = removeOrdinal(normalizeCoverageName(token));
-  const comparableAdministrativeName = removeOrdinal(
-    normalizeCoverageName(administrativeName),
+  const comparableTokenNames = createComparableRegionNames(token);
+  const comparableAdministrativeNames = createComparableRegionNames(
+    administrativeName,
   );
-  if (comparableToken === comparableAdministrativeName) return true;
   if (
-    comparableToken === '동지역' &&
-    comparableAdministrativeName.endsWith('동')
-  ) {
-    return true;
-  }
-  if (
-    comparableToken === '읍면지역' &&
-    /[읍면]$/.test(comparableAdministrativeName)
+    comparableTokenNames.some(name =>
+      comparableAdministrativeNames.includes(name),
+    )
   ) {
     return true;
   }
 
-  const range = /^(.+?)(\d+)동?~(\d+)동$/.exec(comparableToken);
-  const numberedRegion = /^(.+?)(\d+)동$/.exec(
-    comparableAdministrativeName,
+  const normalizedToken = normalizeCoverageName(token);
+  const normalizedAdministrativeName = normalizeCoverageName(administrativeName);
+  if (
+    normalizedToken === '동지역' &&
+    normalizedAdministrativeName.endsWith('동')
+  ) {
+    return true;
+  }
+  if (
+    normalizedToken === '읍면지역' &&
+    /[읍면]$/.test(normalizedAdministrativeName)
+  ) {
+    return true;
+  }
+
+  return comparableAdministrativeNames.some(name =>
+    matchesNumberedRegionRange(normalizedToken, name),
   );
-  if (!range || !numberedRegion || range[1] !== numberedRegion[1]) {
+}
+
+function matchesNumberedRegionRange(
+  token: string,
+  administrativeName: string,
+): boolean {
+  const range = /^(.+?)(?:제)?(\d+)[~～-](?:제)?(\d+)([읍면동])$/.exec(
+    token,
+  );
+  const numberedRegion = /^(.+?)(?:제)?(\d+)([읍면동])$/.exec(
+    administrativeName,
+  );
+  if (
+    !range ||
+    !numberedRegion ||
+    range[1] !== numberedRegion[1] ||
+    range[4] !== numberedRegion[3]
+  ) {
     return false;
   }
 
   const first = Number(range[2]);
   const last = Number(range[3]);
   const ordinal = Number(numberedRegion[2]);
-  return ordinal >= Math.min(first, last) && ordinal <= Math.max(first, last);
+  return ordinal >= first && ordinal <= last;
 }
 
 function collectSearchAliases(
@@ -381,17 +409,11 @@ function collectSearchAliases(
 function collectLegalDongAliases(
   aliasesByRegionId: Map<string, string[]>,
   legalDongAliasesByAdminCode: ReadonlyMap<string, readonly string[]>,
-  availabilityRows: readonly AvailabilityRow[],
-  administrativeRows: readonly AdministrativeRegionRow[],
   selectableRows: readonly AdministrativeRegionRow[],
 ): void {
-  const preferredAdminCodesByAlias = collectPreferredAdminCodesByAlias(
-    availabilityRows,
-    administrativeRows,
-  );
   const numberedDongAliases = new Set(
     selectableRows
-      .map(row => unnumberedDongAlias(row.eupmyeondongName))
+      .map(row => createNumberOmittedDongName(row.eupmyeondongName))
       .filter((name): name is string => Boolean(name)),
   );
 
@@ -401,17 +423,9 @@ function collectLegalDongAliases(
     );
     if (!legalDongAliases) continue;
 
-    const applicableAliases = legalDongAliases.filter(alias => {
-      const comparableAlias = removeOrdinal(normalizeCoverageName(alias));
-      if (numberedDongAliases.has(comparableAlias)) return false;
-
-      const preferredAdminCodes = preferredAdminCodesByAlias.get(
-        comparableAlias,
-      );
-      return (
-        !preferredAdminCodes || preferredAdminCodes.has(selectableRow.adminCode)
-      );
-    });
+    const applicableAliases = legalDongAliases.filter(
+      alias => !numberedDongAliases.has(normalizeCoverageName(alias)),
+    );
     if (applicableAliases.length === 0) continue;
 
     const regionId = `eupmyeondong:${selectableRow.adminCode}`;
@@ -421,35 +435,6 @@ function collectLegalDongAliases(
       uniqueStrings([...currentAliases, ...applicableAliases]),
     );
   }
-}
-
-function collectPreferredAdminCodesByAlias(
-  availabilityRows: readonly AvailabilityRow[],
-  administrativeRows: readonly AdministrativeRegionRow[],
-): ReadonlyMap<string, ReadonlySet<string>> {
-  const adminCodesByAlias = new Map<string, Set<string>>();
-  for (const availabilityRow of availabilityRows) {
-    const coveredAdminCodes = administrativeRows
-      .filter(row => coversAdministrativeRegion(availabilityRow, row))
-      .map(row => row.adminCode);
-    if (coveredAdminCodes.length === 0) continue;
-
-    for (const alias of coverageValueTokens(availabilityRow.targetRegionName)) {
-      if (!isRegionNameToken(alias)) continue;
-
-      const comparableAlias = removeOrdinal(normalizeCoverageName(alias));
-      const adminCodes = adminCodesByAlias.get(comparableAlias) ?? new Set();
-      coveredAdminCodes.forEach(adminCode => adminCodes.add(adminCode));
-      adminCodesByAlias.set(comparableAlias, adminCodes);
-    }
-  }
-  return adminCodesByAlias;
-}
-
-function unnumberedDongAlias(value: string): string | undefined {
-  const comparableName = removeOrdinal(normalizeCoverageName(value));
-  const numberedDong = /^(.+?)\d+동$/.exec(comparableName);
-  return numberedDong ? `${numberedDong[1]}동` : undefined;
 }
 
 function groupLegalDongAliases(
@@ -468,10 +453,6 @@ function groupLegalDongAliases(
 
 function isRegionNameToken(value: string): boolean {
   return /^[가-힣0-9.]+[읍면동]$/.test(value);
-}
-
-function removeOrdinal(value: string): string {
-  return value.replace(/제(?=\d)/g, '');
 }
 
 function normalizeSigungu(value: string): string {
