@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { RegionSelection } from '../../features/regional-guide/domain/Region';
+
 export const BOTTOM_TAB_ROUTES = {
   FAVORITES: 'FavoritesTab',
   HOME: 'HomeTab',
@@ -15,6 +17,7 @@ export const APP_SCREEN_ROUTES = {
   MAP: 'Map',
   QUICK_CATEGORY_SETTINGS: 'QuickCategorySettings',
   REGIONAL_GUIDE: 'RegionalGuide',
+  REGIONAL_GUIDE_DETAIL: 'RegionalGuideDetail',
   SETTINGS: 'Settings',
   SETTINGS_DETAIL: 'SettingsDetail',
 } as const;
@@ -40,6 +43,10 @@ export type CollectionSpotRouteType =
 
 export type ItemGuideDetailSource = 'SEARCH' | 'FAVORITES';
 export type RegionalGuideEntrySource = 'FAVORITES';
+export type RegionalGuideDetailSource =
+  | 'REGIONAL_GUIDE'
+  | 'MAP'
+  | 'FAVORITES';
 
 export type SettingsDetailRouteType =
   | 'Notice'
@@ -84,6 +91,11 @@ export type RegionalGuideRouteParams = {
     }
 );
 
+export type RegionalGuideDetailRouteParams = {
+  selection: RegionSelection;
+  source: RegionalGuideDetailSource;
+};
+
 export type ItemSearchRouteParams = {
   initialQuery?: string;
 };
@@ -117,10 +129,12 @@ export type HomeStackParamList = {
 export type MapStackParamList = {
   Map: MapRouteParams | undefined;
   RegionalGuide: RegionalGuideRouteParams | undefined;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
 };
 
 export type RegionalGuideStackParamList = {
   RegionalGuide: RegionalGuideRouteParams | undefined;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
 };
 
 export type FavoritesStackParamList = {
@@ -128,6 +142,7 @@ export type FavoritesStackParamList = {
   ItemGuideDetail: ItemGuideDetailRouteParams;
   Map: MapRouteParams | undefined;
   RegionalGuide: RegionalGuideRouteParams | undefined;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
 };
 
 export type AppTabParamList = {
