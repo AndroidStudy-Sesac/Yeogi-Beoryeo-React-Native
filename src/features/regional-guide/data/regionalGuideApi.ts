@@ -10,6 +10,8 @@ import type {
 
 const PAGE_SIZE = 100;
 const MAX_CACHE_ENTRY_COUNT = 5;
+const HOUSEHOLD_WASTE_INFO_URL =
+  'https://apis.data.go.kr/1741000/household_waste_info/info';
 
 export type RegionalGuideRecoveryPolicy = Readonly<{
   pageTimeoutMs: number;
@@ -25,7 +27,7 @@ export const DEFAULT_REGIONAL_GUIDE_RECOVERY_POLICY: RegionalGuideRecoveryPolicy
   };
 
 export type RegionalGuideApiConfig = Readonly<{
-  endpoint?: string;
+  serviceKey?: string;
 }>;
 
 type FetchRequester = (
@@ -43,7 +45,9 @@ export type RegionalGuideApiClient = Readonly<{
 
 export function getRegionalGuideApiConfig(): RegionalGuideApiConfig {
   return {
-    endpoint: normalizeText(process.env.EXPO_PUBLIC_REGIONAL_GUIDE_API_URL),
+    serviceKey: normalizeText(
+      process.env.EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY,
+    ),
   };
 }
 
@@ -51,7 +55,9 @@ export function createRegionalGuideApiConfig(
   environment: Record<string, string | undefined>,
 ): RegionalGuideApiConfig {
   return {
-    endpoint: normalizeText(environment.EXPO_PUBLIC_REGIONAL_GUIDE_API_URL),
+    serviceKey: normalizeText(
+      environment.EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY,
+    ),
   };
 }
 
@@ -110,15 +116,15 @@ export async function fetchRegionalDisposalGuides(
   throwIfAborted(signal);
 
   const normalizedSigunguName = normalizeText(sigunguName);
-  const endpoint = normalizeEndpoint(config.endpoint);
-  if (!normalizedSigunguName || !endpoint) {
+  const serviceKey = normalizeText(config.serviceKey);
+  if (!normalizedSigunguName || !serviceKey) {
     return { status: 'failure', reason: 'configuration' };
   }
 
   try {
     const pageResult = await fetchAllPages(
       normalizedSigunguName,
-      endpoint,
+      serviceKey,
       signal,
       request,
       normalizeRecoveryPolicy(recoveryPolicy),
@@ -187,7 +193,7 @@ export function mapRegionalGuideItem(
 
 async function fetchAllPages(
   sigunguName: string,
-  endpoint: string,
+  serviceKey: string,
   signal: AbortSignal | undefined,
   request: FetchRequester,
   policy: RegionalGuideRecoveryPolicy,
@@ -202,7 +208,7 @@ async function fetchAllPages(
 
     const page = await fetchPageWithTimeout(
       sigunguName,
-      endpoint,
+      serviceKey,
       pageNo,
       signal,
       request,
@@ -304,7 +310,7 @@ async function fetchAllPages(
 
 async function fetchPageWithTimeout(
   sigunguName: string,
-  endpoint: string,
+  serviceKey: string,
   pageNo: number,
   externalSignal: AbortSignal | undefined,
   request: FetchRequester,
@@ -338,7 +344,7 @@ async function fetchPageWithTimeout(
     return await Promise.race([
       fetchPage(
         sigunguName,
-        endpoint,
+        serviceKey,
         pageNo,
         requestController.signal,
         request,
@@ -356,13 +362,13 @@ async function fetchPageWithTimeout(
 
 async function fetchPage(
   sigunguName: string,
-  endpoint: string,
+  serviceKey: string,
   pageNo: number,
   signal: AbortSignal,
   request: FetchRequester,
 ): Promise<ApiPage> {
   const response = await request(
-    createRequestUrl(endpoint, sigunguName, pageNo),
+    createRequestUrl(sigunguName, serviceKey, pageNo),
     { signal },
   );
   if (!response.ok) throw new RegionalGuideApiError();
@@ -374,14 +380,16 @@ async function fetchPage(
 }
 
 function createRequestUrl(
-  endpoint: string,
   sigunguName: string,
+  serviceKey: string,
   pageNo: number,
 ): string {
-  const url = new URL(endpoint);
-  url.searchParams.set('sigunguName', sigunguName);
+  const url = new URL(HOUSEHOLD_WASTE_INFO_URL);
+  url.searchParams.set('serviceKey', serviceKey);
   url.searchParams.set('pageNo', String(pageNo));
   url.searchParams.set('numOfRows', String(PAGE_SIZE));
+  url.searchParams.set('returnType', 'json');
+  url.searchParams.set('cond[SGG_NM::LIKE]', sigunguName);
   return url.toString();
 }
 
@@ -538,26 +546,6 @@ function normalizedPageSize(value: number | undefined): number | undefined {
 
 function positiveInteger(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
-}
-
-function normalizeEndpoint(value: string | undefined): string | undefined {
-  const endpoint = normalizeText(value);
-  if (!endpoint) return undefined;
-  try {
-    const url = new URL(endpoint);
-    if (
-      [...url.searchParams.keys()].some(
-        key => key.toLowerCase() === 'servicekey',
-      )
-    ) {
-      return undefined;
-    }
-    return url.protocol === 'https:' || url.protocol === 'http:'
-      ? url.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function readText(

@@ -1,11 +1,12 @@
 import {
+  createRegionalGuideApiConfig,
   createRegionalGuideApiClient,
   fetchRegionalDisposalGuides,
   mapRegionalGuideItem,
   type RegionalGuideRecoveryPolicy,
 } from './regionalGuideApi';
 
-const config = { endpoint: 'https://example.com/regional-guide/info' };
+const config = { serviceKey: 'test-service-key' };
 const policy: RegionalGuideRecoveryPolicy = {
   pageTimeoutMs: 100,
   totalTimeoutMs: 500,
@@ -15,7 +16,7 @@ const policy: RegionalGuideRecoveryPolicy = {
 describe('지역 가이드 API', () => {
   afterEach(() => jest.useRealTimers());
 
-  it('BFF에 조회 조건만 전달하고 비밀 key는 포함하지 않습니다', async () => {
+  it('공공데이터 API에 인증 key와 조회 조건을 전달합니다', async () => {
     const request = jest
       .fn()
       .mockResolvedValue(jsonResponse(apiResponse([guideItem()], 1)));
@@ -29,13 +30,24 @@ describe('지역 가이드 API', () => {
     );
 
     const url = new URL(request.mock.calls[0][0] as string);
-    expect(url.searchParams.get('sigunguName')).toBe('수원시');
+    expect(url.origin).toBe('https://apis.data.go.kr');
+    expect(url.pathname).toBe('/1741000/household_waste_info/info');
+    expect(url.searchParams.get('serviceKey')).toBe(config.serviceKey);
     expect(url.searchParams.get('pageNo')).toBe('1');
     expect(url.searchParams.get('numOfRows')).toBe('100');
-    expect(url.searchParams.has('serviceKey')).toBe(false);
+    expect(url.searchParams.get('returnType')).toBe('json');
+    expect(url.searchParams.get('cond[SGG_NM::LIKE]')).toBe('수원시');
     expect(request.mock.calls[0][1]).toMatchObject({
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it('Expo 공개 환경 변수에서 지역 가이드 API key를 읽습니다', () => {
+    expect(
+      createRegionalGuideApiConfig({
+        EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: '  service-key  ',
+      }),
+    ).toEqual({ serviceKey: 'service-key' });
   });
 
   it('세 폐기물 유형의 요일·시간·방법·장소를 공통 모델로 변환합니다', () => {
@@ -388,7 +400,7 @@ describe('지역 가이드 API', () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it('endpoint가 없거나 잘못되면 요청 전에 구성 오류로 처리합니다', async () => {
+  it('API key가 없으면 요청 전에 구성 오류로 처리합니다', async () => {
     const request = jest.fn();
 
     await expect(
@@ -397,16 +409,7 @@ describe('지역 가이드 API', () => {
     await expect(
       fetchRegionalDisposalGuides(
         '수원시',
-        { endpoint: 'secret-key' },
-        undefined,
-        request,
-        policy,
-      ),
-    ).resolves.toEqual({ status: 'failure', reason: 'configuration' });
-    await expect(
-      fetchRegionalDisposalGuides(
-        '수원시',
-        { endpoint: 'https://example.com/info?serviceKey=secret' },
+        { serviceKey: '   ' },
         undefined,
         request,
         policy,
