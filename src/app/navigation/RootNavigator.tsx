@@ -1,11 +1,14 @@
 import {
+  CommonActions,
+  useFocusEffect,
   useNavigation,
+  usePreventRemove,
   useRoute,
   type NavigationProp,
   type RouteProp,
 } from '@react-navigation/native';
-import { useCallback } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { BackHandler, StyleSheet, Text, View } from 'react-native';
 
 import { RegionalGuideScreen } from '../../features/regional-guide/presentation/RegionalGuideScreen';
 import { RegionalGuideDetailScreen } from '../../features/regional-guide/presentation/RegionalGuideDetailScreen';
@@ -40,11 +43,35 @@ function RegionalGuideRouteScreen() {
     RouteProp<RegionalGuideStackParamList, 'RegionalGuide'>
   >();
   const source = regionalGuideDetailSource(route.params);
+  const [searchBackHandler, setSearchBackHandler] = useState<
+    (() => boolean) | undefined
+  >();
+  const registerSearchBackHandler = useCallback(
+    (handler?: () => boolean) => {
+      setSearchBackHandler(handler ? () => handler : undefined);
+    },
+    [],
+  );
+  useFocusEffect(
+    useCallback(() => {
+      if (!searchBackHandler) return undefined;
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        searchBackHandler,
+      );
+      return () => subscription.remove();
+    }, [searchBackHandler]),
+  );
   const openDetail = useCallback(
-    (selection: RegionalGuideStackParamList['RegionalGuideDetail']['selection']) =>
+    (
+      selection: RegionalGuideStackParamList['RegionalGuideDetail']['selection'],
+      options?: Readonly<{ restoreSearchCandidatesOnBack: boolean }>,
+    ) =>
       navigation.navigate(APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL, {
         selection,
         source,
+        restoreSearchCandidatesOnBack:
+          options?.restoreSearchCandidatesOnBack ?? false,
       }),
     [navigation, source],
   );
@@ -53,19 +80,69 @@ function RegionalGuideRouteScreen() {
       initialQuery={
         route.params?.initialKeyword ?? route.params?.initialAddress ?? ''
       }
+      onSearchBackHandlerChange={registerSearchBackHandler}
       onRegionSelected={openDetail}
+      restoreSearchCandidatesRequestId={
+        route.params?.restoreSearchCandidatesRequestId
+      }
     />
   );
 }
 
 function RegionalGuideDetailRouteScreen() {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NavigationProp<RegionalGuideStackParamList>>();
   const route = useRoute<
     RouteProp<RegionalGuideStackParamList, 'RegionalGuideDetail'>
   >();
+  const [candidateBackHandler, setCandidateBackHandler] = useState<
+    (() => boolean) | undefined
+  >();
+  const allowRemovalRef = useRef(false);
+  const registerCandidateBackHandler = useCallback(
+    (handler?: () => boolean) => {
+      setCandidateBackHandler(handler ? () => handler : undefined);
+    },
+    [],
+  );
+  const shouldRestoreSearchCandidates =
+    route.params.restoreSearchCandidatesOnBack === true;
+  const markSearchCandidatesForRestore = useCallback(() => {
+    const state = navigation.getState();
+    const previousRoute = state.routes[state.index - 1];
+    if (previousRoute?.name !== APP_SCREEN_ROUTES.REGIONAL_GUIDE) return;
+
+    navigation.dispatch({
+      ...CommonActions.setParams({
+        restoreSearchCandidatesRequestId: nextRestoreSearchCandidatesRequestId++,
+      }),
+      source: previousRoute.key,
+    });
+  }, [navigation]);
+  const shouldPreventRemoval =
+    Boolean(candidateBackHandler) || shouldRestoreSearchCandidates;
+  usePreventRemove(shouldPreventRemoval, ({ data }) => {
+    if (allowRemovalRef.current) {
+      allowRemovalRef.current = false;
+      navigation.dispatch(data.action);
+      return;
+    }
+    if (candidateBackHandler?.()) return;
+    if (shouldRestoreSearchCandidates) {
+      markSearchCandidatesForRestore();
+      allowRemovalRef.current = true;
+      navigation.dispatch(data.action);
+    }
+  });
+  const leaveDetail = useCallback(() => {
+    if (shouldPreventRemoval) allowRemovalRef.current = true;
+    navigation.goBack();
+  }, [navigation, shouldPreventRemoval]);
+
   return (
     <RegionalGuideDetailScreen
-      onBack={() => navigation.goBack()}
+      onBack={leaveDetail}
+      onCandidateBackHandlerChange={registerCandidateBackHandler}
       selection={route.params.selection}
     />
   );
@@ -92,6 +169,8 @@ const appScreens = {
   Settings: BootstrapScreen,
   SettingsDetail: BootstrapScreen,
 } satisfies AppScreenRegistry;
+
+let nextRestoreSearchCandidatesRequestId = Date.now();
 
 const styles = StyleSheet.create({
   container: {

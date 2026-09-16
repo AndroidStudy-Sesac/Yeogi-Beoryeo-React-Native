@@ -79,6 +79,7 @@ export type MapRouteParams = {
 export type RegionalGuideRouteParams = {
   initialAddress?: string;
   initialKeyword?: string;
+  restoreSearchCandidatesRequestId?: number;
 } & (
   | {
       entrySource: RegionalGuideEntrySource;
@@ -94,6 +95,7 @@ export type RegionalGuideRouteParams = {
 export type RegionalGuideDetailRouteParams = {
   selection: RegionSelection;
   source: RegionalGuideDetailSource;
+  restoreSearchCandidatesOnBack?: boolean;
 };
 
 export type ItemSearchRouteParams = {
