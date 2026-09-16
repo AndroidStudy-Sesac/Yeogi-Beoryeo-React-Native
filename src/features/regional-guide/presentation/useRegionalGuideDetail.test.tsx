@@ -51,6 +51,134 @@ describe('useRegionalGuideDetail', () => {
     expect(result.current.state).toEqual({ status: 'not-provided' });
   });
 
+  it('정확히 일치하는 안내가 여러 건이면 후보 선택 후 단일 상세로 전환합니다', async () => {
+    const firstGuide = {
+      managementZoneName: '1권역',
+      targetRegionName: '노형동',
+      schedules: [],
+    };
+    const secondGuide = {
+      managementZoneName: '2권역',
+      targetRegionName: '노형동',
+      schedules: [],
+    };
+    const client = clientReturning({
+      status: 'success',
+      guides: [firstGuide, secondGuide],
+    });
+    const { result } = await renderHook(() => useRegionalGuideDetail(client));
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+    expect(result.current.state).toMatchObject({
+      status: 'candidates',
+      reason: 'multiple-exact-matches',
+    });
+
+    await act(async () => result.current.selectCandidate(secondGuide));
+
+    expect(result.current.state).toEqual({
+      status: 'success',
+      guides: [secondGuide],
+    });
+  });
+
+  it('부분 조회의 복수 후보를 선택해도 partial 진단 정보를 유지합니다', async () => {
+    const firstGuide = {
+      managementZoneName: '1권역',
+      targetRegionName: '노형동',
+      schedules: [],
+    };
+    const secondGuide = {
+      managementZoneName: '2권역',
+      targetRegionName: '노형동',
+      schedules: [],
+    };
+    const metadata = {
+      reason: 'timeout' as const,
+      fetchedPageCount: 1,
+      receivedItemCount: 2,
+      totalCount: 3,
+      failedPageNo: 2,
+      duplicateGuideCount: 0,
+    };
+    const client = clientReturning({
+      status: 'partial',
+      guides: [firstGuide, secondGuide],
+      metadata,
+    });
+    const { result } = await renderHook(() => useRegionalGuideDetail(client));
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+    expect(result.current.state).toMatchObject({
+      status: 'candidates',
+      partialMetadata: metadata,
+    });
+
+    await act(async () => result.current.selectCandidate(firstGuide));
+
+    expect(result.current.state).toEqual({
+      status: 'partial',
+      guides: [firstGuide],
+      metadata,
+    });
+  });
+
+  it('후보 상세에서 뒤로가면 부분 조회 정보를 포함한 후보 목록을 복원합니다', async () => {
+    const firstGuide = {
+      managementZoneName: '1권역',
+      targetRegionName: '노형동',
+      schedules: [],
+    };
+    const secondGuide = {
+      managementZoneName: '2권역',
+      targetRegionName: '노형동',
+      schedules: [],
+    };
+    const metadata = {
+      reason: 'timeout' as const,
+      fetchedPageCount: 1,
+      receivedItemCount: 2,
+      totalCount: 3,
+      failedPageNo: 2,
+      duplicateGuideCount: 0,
+    };
+    const client = clientReturning({
+      status: 'partial',
+      guides: [firstGuide, secondGuide],
+      metadata,
+    });
+    const { result } = await renderHook(() => useRegionalGuideDetail(client));
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+    await act(async () => result.current.selectCandidate(firstGuide));
+    expect(result.current.canRestoreCandidates).toBe(true);
+
+    await act(async () => result.current.restoreCandidates());
+
+    expect(result.current.state).toEqual({
+      status: 'candidates',
+      guides: [firstGuide, secondGuide],
+      reason: 'multiple-exact-matches',
+      partialMetadata: metadata,
+    });
+    expect(result.current.canRestoreCandidates).toBe(false);
+  });
+
   it('오래된 요청의 늦은 결과가 최신 지역 결과를 덮어쓰지 않습니다', async () => {
     const first = deferredResult();
     const client: RegionalGuideApiClient = {

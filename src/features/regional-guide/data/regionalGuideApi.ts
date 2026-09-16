@@ -154,6 +154,14 @@ export function mapRegionalGuideItem(
 ): RegionalDisposalGuide | undefined {
   if (!isRecord(item)) return undefined;
 
+  const sourceMetadata = {
+    managementNumber: readText(item, 'MNG_NO'),
+    lastModifiedPoint: readText(item, 'LAST_MDFCN_PNT'),
+    dataCriteriaDate: readText(item, 'DAT_CRTR_YMD'),
+    dataUpdatedPoint: readText(item, 'DAT_UPDT_PNT'),
+    dataUpdateType: readText(item, 'DAT_UPDT_SE'),
+  };
+
   const guide: RegionalDisposalGuide = {
     sidoName: readText(item, 'CTPV_NM'),
     sigunguName: readText(item, 'SGG_NM'),
@@ -171,6 +179,7 @@ export function mapRegionalGuideItem(
     ),
     departmentName: readText(item, 'MNG_DEPT_NM'),
     departmentPhoneNumber: readText(item, 'MNG_DEPT_TELNO'),
+    ...(Object.values(sourceMetadata).some(Boolean) ? { sourceMetadata } : {}),
   };
 
   return hasGuideContent(guide) ? guide : undefined;
@@ -402,7 +411,10 @@ function createSchedule(
   const disposalEndTime = normalizeTime(
     readText(item, `${prefix}_EMSN_END_TM`),
   );
-  const disposalMethod = readText(item, `${prefix}_EMSN_MTHD`);
+  const disposalMethod = normalizeMethod(
+    readText(item, `${prefix}_EMSN_MTHD`),
+  );
+  const disposalPlace = readText(item, 'EMSN_PLC');
 
   if (
     !disposalDays &&
@@ -418,6 +430,7 @@ function createSchedule(
     disposalStartTime,
     disposalEndTime,
     disposalMethod,
+    disposalPlace,
   };
 }
 
@@ -458,6 +471,10 @@ function normalizeDays(value: string | undefined): string | undefined {
       .filter((day, index, days) => days.indexOf(day) === index)
       .join(', ') || undefined
   );
+}
+
+function normalizeMethod(value: string | undefined): string | undefined {
+  return value?.replace(/\s+/g, ' ').trim() || undefined;
 }
 
 function normalizeTime(value: string | undefined): string | undefined {

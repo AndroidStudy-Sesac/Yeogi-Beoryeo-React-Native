@@ -6,6 +6,15 @@ export type RegionalWasteSchedule = Readonly<{
   disposalStartTime?: string;
   disposalEndTime?: string;
   disposalMethod?: string;
+  disposalPlace?: string;
+}>;
+
+export type RegionalGuideSourceMetadata = Readonly<{
+  managementNumber?: string;
+  lastModifiedPoint?: string;
+  dataCriteriaDate?: string;
+  dataUpdatedPoint?: string;
+  dataUpdateType?: string;
 }>;
 
 export type RegionalDisposalGuide = Readonly<{
@@ -19,6 +28,7 @@ export type RegionalDisposalGuide = Readonly<{
   schedules: readonly RegionalWasteSchedule[];
   departmentName?: string;
   departmentPhoneNumber?: string;
+  sourceMetadata?: RegionalGuideSourceMetadata;
 }>;
 
 export type RegionalGuideFailureReason =

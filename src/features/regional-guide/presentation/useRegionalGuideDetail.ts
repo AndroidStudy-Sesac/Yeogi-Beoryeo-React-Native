@@ -9,10 +9,11 @@ import type {
   RegionalGuideFailureReason,
   RegionalGuidePartialResultMetadata,
 } from '../domain/RegionalDisposalGuide';
+import type { RegionalGuideQuery } from '../domain/regionalGuideQuery';
 import {
-  selectGuidesForRegion,
-  type RegionalGuideQuery,
-} from '../domain/regionalGuideQuery';
+  selectRegionalGuideCandidate,
+  type RegionalGuideCandidateReason,
+} from '../domain/selectRegionalGuideCandidate';
 
 export type RegionalGuideDetailState =
   | Readonly<{ status: 'idle' }>
@@ -22,6 +23,12 @@ export type RegionalGuideDetailState =
       status: 'partial';
       guides: readonly RegionalDisposalGuide[];
       metadata: RegionalGuidePartialResultMetadata;
+    }>
+  | Readonly<{
+      status: 'candidates';
+      guides: readonly RegionalDisposalGuide[];
+      reason: RegionalGuideCandidateReason;
+      partialMetadata?: RegionalGuidePartialResultMetadata;
     }>
   | Readonly<{ status: 'not-found' }>
   | Readonly<{ status: 'not-provided' }>
@@ -34,6 +41,9 @@ export function useRegionalGuideDetail(
 ) {
   const client = providedClient ?? defaultClient;
   const activeControllerRef = useRef<AbortController | undefined>(undefined);
+  const [candidateHistory, setCandidateHistory] = useState<
+    Extract<RegionalGuideDetailState, { status: 'candidates' }> | undefined
+  >(undefined);
   const lastQueryRef = useRef<RegionalGuideQuery | undefined>(undefined);
   const [state, setState] = useState<RegionalGuideDetailState>({
     status: 'idle',
@@ -47,9 +57,10 @@ export function useRegionalGuideDetail(
     [],
   );
 
-  const lookup = useCallback(
-    async (query: RegionalGuideQuery) => {
+  const performLookup = useCallback(
+    async (query: RegionalGuideQuery, preserveCandidateHistory: boolean) => {
       activeControllerRef.current?.abort();
+      if (!preserveCandidateHistory) setCandidateHistory(undefined);
       lastQueryRef.current = query;
 
       const controller = new AbortController();
@@ -72,18 +83,32 @@ export function useRegionalGuideDetail(
           return;
         }
 
-        const guides = selectGuidesForRegion(
-          result.guides,
-          query.eupmyeondongName,
-        );
-        if (result.status === 'partial') {
-          setState({ status: 'partial', guides, metadata: result.metadata });
+        const selection = selectRegionalGuideCandidate(result.guides, query);
+        if (selection.status === 'candidates') {
+          setState({
+            ...selection,
+            ...(result.status === 'partial'
+              ? { partialMetadata: result.metadata }
+              : {}),
+          });
+          return;
+        }
+        if (selection.status === 'not-provided') {
+          setState(
+            result.status === 'partial'
+              ? { status: 'partial', guides: [], metadata: result.metadata }
+              : selection,
+          );
           return;
         }
         setState(
-          guides.length > 0
-            ? { status: 'success', guides }
-            : { status: 'not-provided' },
+          result.status === 'partial'
+            ? {
+                status: 'partial',
+                guides: [selection.guide],
+                metadata: result.metadata,
+              }
+            : { status: 'success', guides: [selection.guide] },
         );
       } catch (error) {
         if (activeControllerRef.current !== controller) return;
@@ -101,12 +126,52 @@ export function useRegionalGuideDetail(
     [client],
   );
 
+  const lookup = useCallback(
+    (query: RegionalGuideQuery) => performLookup(query, false),
+    [performLookup],
+  );
+
   const retry = useCallback(() => {
     const query = lastQueryRef.current;
-    return query ? lookup(query) : Promise.resolve();
-  }, [lookup]);
+    return query ? performLookup(query, true) : Promise.resolve();
+  }, [performLookup]);
 
-  return { state, lookup, retry };
+  const selectCandidate = useCallback(
+    (guide: RegionalDisposalGuide) => {
+      if (state.status !== 'candidates' || !state.guides.includes(guide)) {
+        return;
+      }
+      setCandidateHistory(state);
+      setState(
+        state.partialMetadata
+          ? {
+              status: 'partial',
+              guides: [guide],
+              metadata: state.partialMetadata,
+            }
+          : { status: 'success', guides: [guide] },
+      );
+    },
+    [state],
+  );
+
+  const restoreCandidates = useCallback(() => {
+    const candidates = candidateHistory;
+    if (!candidates) return false;
+
+    setCandidateHistory(undefined);
+    setState(candidates);
+    return true;
+  }, [candidateHistory]);
+
+  return {
+    state,
+    lookup,
+    retry,
+    selectCandidate,
+    restoreCandidates,
+    canRestoreCandidates: candidateHistory !== undefined,
+  };
 }
 
 function isAbortError(error: unknown): boolean {

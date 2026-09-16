@@ -38,7 +38,7 @@ describe('지역 가이드 API', () => {
     });
   });
 
-  it('세 폐기물 유형의 요일·시간·방법을 공통 모델로 변환합니다', () => {
+  it('세 폐기물 유형의 요일·시간·방법·장소를 공통 모델로 변환합니다', () => {
     expect(mapRegionalGuideItem(guideItem())).toEqual({
       sidoName: '경기도',
       sigunguName: '수원시',
@@ -54,21 +54,40 @@ describe('지역 가이드 API', () => {
           disposalStartTime: '18:00',
           disposalEndTime: '23:00',
           disposalMethod: '종량제 봉투 배출',
+          disposalPlace: '내 집 앞',
         },
         {
           wasteType: 'food',
           disposalDays: '매일',
           disposalMethod: '전용 수거함 배출',
+          disposalPlace: '내 집 앞',
         },
         {
           wasteType: 'recyclable',
           disposalDays: '목',
           disposalStartTime: '20:00',
+          disposalPlace: '내 집 앞',
         },
       ],
       departmentName: '청소행정과',
       departmentPhoneNumber: '031-123-4567',
+      sourceMetadata: {
+        managementNumber: 'guide-1',
+        lastModifiedPoint: '20240201120000',
+        dataCriteriaDate: '20240201',
+        dataUpdatedPoint: '20240202',
+        dataUpdateType: '수정',
+      },
     });
+  });
+
+  it('배출 방법의 반복 공백과 줄바꿈을 화면용 문장으로 정규화합니다', () => {
+    expect(
+      mapRegionalGuideItem({
+        ...guideItem(),
+        LF_WST_EMSN_MTHD: '  종량제 봉투\n  배출  ',
+      })?.schedules[0]?.disposalMethod,
+    ).toBe('종량제 봉투 배출');
   });
 
   it('여러 페이지를 순서대로 병합합니다', async () => {
@@ -412,6 +431,7 @@ function apiResponse(items: unknown[], totalCount: number, numOfRows = 100) {
 
 function guideItem(managementZoneName = '장안구') {
   return {
+    MNG_NO: 'guide-1',
     CTPV_NM: '경기도',
     SGG_NM: '수원시',
     MNG_ZONE_NM: managementZoneName,
@@ -429,6 +449,10 @@ function guideItem(managementZoneName = '장안구') {
     RCYCL_EMSN_BGNG_TM: '2000',
     MNG_DEPT_NM: '청소행정과',
     MNG_DEPT_TELNO: '031-123-4567',
+    LAST_MDFCN_PNT: '20240201120000',
+    DAT_CRTR_YMD: '20240201',
+    DAT_UPDT_PNT: '20240202',
+    DAT_UPDT_SE: '수정',
   };
 }
 
