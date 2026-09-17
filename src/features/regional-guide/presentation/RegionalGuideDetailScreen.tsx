@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  BackHandler,
   Linking,
   Pressable,
   ScrollView,
@@ -90,15 +89,6 @@ export function RegionalGuideDetailScreen({
     onCandidateBackHandlerChange,
     restoreCandidates,
   ]);
-
-  useEffect(() => {
-    if (!canRestoreCandidates) return;
-    const subscription = BackHandler.addEventListener(
-      'hardwareBackPress',
-      restoreCandidates,
-    );
-    return () => subscription.remove();
-  }, [canRestoreCandidates, restoreCandidates]);
 
   const showsCollectionTypePanel =
     state.status === 'candidates' &&
@@ -734,7 +724,11 @@ function scheduleDisplayKey(schedule: RegionalWasteSchedule): string {
 
 function displayValue(value: string | undefined): string | undefined {
   const normalized = value?.trim();
-  if (!normalized || ['-', '없음', '해당없음'].includes(normalized)) {
+  if (
+    !normalized ||
+    normalized.toLowerCase() === 'null' ||
+    ['-', '없음', '해당없음'].includes(normalized)
+  ) {
     return undefined;
   }
   return normalized;

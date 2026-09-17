@@ -102,6 +102,45 @@ describe('지역 가이드 API', () => {
     ).toBe('종량제 봉투 배출');
   });
 
+  it('문자열 null을 누락값으로 처리하고 빈 배출 일정을 만들지 않습니다', () => {
+    const mapped = mapRegionalGuideItem({
+      ...guideItem(),
+      MNG_ZONE_NM: ' null ',
+      MNG_ZONE_TRGT_RGN_NM: 'NULL',
+      EMSN_PLC_TYPE: 'null',
+      EMSN_PLC: 'NULL',
+      UNCLLT_DAY: 'null/공휴일',
+      LF_WST_EMSN_DOW: 'null',
+      LF_WST_EMSN_BGNG_TM: 'NULL',
+      LF_WST_EMSN_END_TM: 'null',
+      LF_WST_EMSN_MTHD: 'NULL',
+      FOD_WST_EMSN_DOW: 'null',
+      FOD_WST_EMSN_MTHD: 'NULL',
+      RCYCL_EMSN_DOW: 'null',
+      RCYCL_EMSN_BGNG_TM: 'NULL',
+      MNG_DEPT_NM: 'null',
+      MNG_DEPT_TELNO: 'NULL',
+      MNG_NO: 'null',
+      LAST_MDFCN_PNT: 'NULL',
+      DAT_CRTR_YMD: 'null',
+      DAT_UPDT_PNT: 'NULL',
+      DAT_UPDT_SE: 'null',
+    });
+
+    expect(mapped).toMatchObject({
+      managementZoneName: undefined,
+      targetRegionName: undefined,
+      disposalPlaceType: undefined,
+      disposalPlace: undefined,
+      uncollectedDays: '공휴일',
+      schedules: [],
+      departmentName: undefined,
+      departmentPhoneNumber: undefined,
+    });
+    expect(mapped).not.toHaveProperty('sourceMetadata');
+    expect(JSON.stringify(mapped)).not.toMatch(/null/i);
+  });
+
   it('여러 페이지를 순서대로 병합합니다', async () => {
     const request = jest.fn((input: string) => {
       const pageNo = Number(new URL(input).searchParams.get('pageNo'));
@@ -332,23 +371,52 @@ describe('지역 가이드 API', () => {
     });
   });
 
-  it('페이지 사이의 완전히 같은 안내는 하나로 합칩니다', async () => {
-    const request = jest.fn(() =>
-      Promise.resolve(jsonResponse(apiResponse([guideItem()], 2, 1))),
+  it('같은 페이지가 반복되면 partial로 반환하고 캐시하지 않습니다', async () => {
+    const firstPage = jsonResponse(
+      apiResponse([guideItem('1권역')], 2, 1),
     );
+    const repeatedPage = jsonResponse(
+      apiResponse([guideItem('1권역')], 2, 1),
+    );
+    const retriedFirstPage = jsonResponse(
+      apiResponse([guideItem('1권역')], 2, 1),
+    );
+    const completedSecondPage = jsonResponse(
+      apiResponse([guideItem('2권역')], 2, 1),
+    );
+    const request = jest
+      .fn()
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(repeatedPage)
+      .mockResolvedValueOnce(retriedFirstPage)
+      .mockResolvedValueOnce(completedSecondPage);
+    const client = createRegionalGuideApiClient(config, request, policy);
 
     await expect(
-      fetchRegionalDisposalGuides(
-        '수원시',
-        config,
-        undefined,
-        request,
-        policy,
-      ),
+      client.fetchRegionalDisposalGuides('수원시'),
+    ).resolves.toMatchObject({
+      status: 'partial',
+      guides: [expect.objectContaining({ managementZoneName: '1권역' })],
+      metadata: {
+        reason: 'inconsistent-response',
+        fetchedPageCount: 2,
+        receivedItemCount: 1,
+        totalCount: 2,
+        failedPageNo: 2,
+      },
+    });
+    await expect(
+      client.fetchRegionalDisposalGuides('수원시'),
     ).resolves.toMatchObject({
       status: 'success',
-      guides: [expect.objectContaining({ managementZoneName: '장안구' })],
+      guides: [
+        expect.objectContaining({ managementZoneName: '1권역' }),
+        expect.objectContaining({ managementZoneName: '2권역' }),
+      ],
     });
+    await client.fetchRegionalDisposalGuides('수원시');
+
+    expect(request).toHaveBeenCalledTimes(4);
   });
 
   it('외부 cancellation은 실패나 partial로 변환하지 않습니다', async () => {

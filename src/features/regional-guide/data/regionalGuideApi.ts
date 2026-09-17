@@ -220,6 +220,7 @@ async function fetchAllPages(
 
   const firstPage = await fetchPageWithinBudget(1);
   items.push(...firstPage.items);
+  const seenPageFingerprints = new Set([pageFingerprint(firstPage.items)]);
   const totalCount = firstPage.totalCount;
 
   if (totalCount === undefined) return { items };
@@ -267,6 +268,17 @@ async function fetchAllPages(
         pageNo,
       );
     }
+    const fingerprint = pageFingerprint(page.items);
+    if (seenPageFingerprints.has(fingerprint)) {
+      return partialPageResult(
+        items,
+        'inconsistent-response',
+        fetchedPageCount,
+        totalCount,
+        pageNo,
+      );
+    }
+    seenPageFingerprints.add(fingerprint);
     items.push(...page.items);
     if (items.length > totalCount) {
       return partialPageResult(
@@ -469,13 +481,34 @@ function distinctGuides(
   ];
 }
 
+function pageFingerprint(items: readonly unknown[]): string {
+  return items
+    .map(item => stableSerialize(item))
+    .sort()
+    .map(serialized => `${serialized.length}:${serialized}`)
+    .join('|');
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerialize).join(',')}]`;
+  }
+  if (isRecord(value)) {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? String(value);
+}
+
 function normalizeDays(value: string | undefined): string | undefined {
   return (
     value
       ?.replace(/요일/g, '')
       .split(/[,+/|]/)
-      .map(day => day.trim())
-      .filter(Boolean)
+      .map(normalizeText)
+      .filter((day): day is string => day !== undefined)
       .filter((day, index, days) => days.indexOf(day) === index)
       .join(', ') || undefined
   );
@@ -580,7 +613,11 @@ function readNonNegativeInteger(
 }
 
 function normalizeText(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return normalized && normalized.toLowerCase() !== 'null'
+    ? normalized
+    : undefined;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

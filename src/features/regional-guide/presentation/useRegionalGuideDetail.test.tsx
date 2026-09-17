@@ -236,7 +236,116 @@ describe('useRegionalGuideDetail', () => {
     expect(result.current.state.status).toBe('success');
     expect(client.fetchRegionalDisposalGuides).toHaveBeenCalledTimes(2);
   });
+
+  it('후보 상세 재조회가 성공하면 이전 후보 이력을 폐기합니다', async () => {
+    const firstGuide = guide('1권역');
+    const secondGuide = guide('2권역');
+    const thirdGuide = guide('3권역');
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest
+        .fn()
+        .mockResolvedValueOnce({
+          status: 'partial',
+          guides: [firstGuide, secondGuide],
+          metadata: partialMetadata(),
+        })
+        .mockResolvedValueOnce({
+          status: 'success',
+          guides: [firstGuide, secondGuide, thirdGuide],
+        }),
+      clearCache: jest.fn(),
+    };
+    const { result } = await renderHook(() => useRegionalGuideDetail(client));
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+    await act(async () => result.current.selectCandidate(firstGuide));
+    await act(() => result.current.retry());
+
+    expect(result.current.state).toMatchObject({
+      status: 'candidates',
+      guides: [firstGuide, secondGuide, thirdGuide],
+    });
+    expect(result.current.canRestoreCandidates).toBe(false);
+    expect(result.current.restoreCandidates()).toBe(false);
+  });
+
+  it('재조회 중 후보 복원 시 진행 중인 요청을 취소하고 늦은 결과를 무시합니다', async () => {
+    const firstGuide = guide('1권역');
+    const secondGuide = guide('2권역');
+    const retryResult = deferredResult();
+    let retrySignal: AbortSignal | undefined;
+    const client: RegionalGuideApiClient = {
+      fetchRegionalDisposalGuides: jest
+        .fn()
+        .mockResolvedValueOnce({
+          status: 'partial',
+          guides: [firstGuide, secondGuide],
+          metadata: partialMetadata(),
+        })
+        .mockImplementationOnce((_sigunguName, signal) => {
+          retrySignal = signal;
+          return retryResult.promise;
+        }),
+      clearCache: jest.fn(),
+    };
+    const { result } = await renderHook(() => useRegionalGuideDetail(client));
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+    await act(async () => result.current.selectCandidate(firstGuide));
+    await act(async () => {
+      void result.current.retry();
+      await Promise.resolve();
+    });
+    await act(async () => result.current.restoreCandidates());
+
+    expect(retrySignal?.aborted).toBe(true);
+    expect(result.current.state).toMatchObject({
+      status: 'candidates',
+      guides: [firstGuide, secondGuide],
+    });
+
+    await act(async () => {
+      retryResult.resolve({
+        status: 'success',
+        guides: [guide('새 권역')],
+      });
+      await retryResult.promise;
+    });
+    expect(result.current.state).toMatchObject({
+      status: 'candidates',
+      guides: [firstGuide, secondGuide],
+    });
+  });
 });
+
+function guide(managementZoneName: string) {
+  return {
+    managementZoneName,
+    targetRegionName: '노형동',
+    schedules: [],
+  };
+}
+
+function partialMetadata() {
+  return {
+    reason: 'timeout' as const,
+    fetchedPageCount: 1,
+    receivedItemCount: 2,
+    totalCount: 3,
+    failedPageNo: 2,
+    duplicateGuideCount: 0,
+  };
+}
 
 function clientReturning(
   result: RegionalGuideLookupResult,

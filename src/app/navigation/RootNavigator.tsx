@@ -1,6 +1,5 @@
 import {
   CommonActions,
-  useFocusEffect,
   useNavigation,
   usePreventRemove,
   useRoute,
@@ -8,7 +7,7 @@ import {
   type RouteProp,
 } from '@react-navigation/native';
 import { useCallback, useRef, useState } from 'react';
-import { BackHandler, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { RegionalGuideScreen } from '../../features/regional-guide/presentation/RegionalGuideScreen';
 import { RegionalGuideDetailScreen } from '../../features/regional-guide/presentation/RegionalGuideDetailScreen';
@@ -20,6 +19,7 @@ import {
   type RegionalGuideDetailSource,
   type RegionalGuideStackParamList,
 } from './routes';
+import { useFocusedHardwareBack } from './useFocusedHardwareBack';
 
 function BootstrapScreen() {
   return (
@@ -52,16 +52,7 @@ function RegionalGuideRouteScreen() {
     },
     [],
   );
-  useFocusEffect(
-    useCallback(() => {
-      if (!searchBackHandler) return undefined;
-      const subscription = BackHandler.addEventListener(
-        'hardwareBackPress',
-        searchBackHandler,
-      );
-      return () => subscription.remove();
-    }, [searchBackHandler]),
-  );
+  useFocusedHardwareBack(searchBackHandler);
   const openDetail = useCallback(
     (
       selection: RegionalGuideStackParamList['RegionalGuideDetail']['selection'],
@@ -105,6 +96,7 @@ function RegionalGuideDetailRouteScreen() {
     },
     [],
   );
+  useFocusedHardwareBack(candidateBackHandler);
   const shouldRestoreSearchCandidates =
     route.params.restoreSearchCandidatesOnBack === true;
   const markSearchCandidatesForRestore = useCallback(() => {

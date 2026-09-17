@@ -214,8 +214,18 @@ function expandAdministrativeNames(value: string): string[] {
   const normalized = normalizeComparableName(
     value.replace(/\([^)]*\)|（[^）]*）/g, ''),
   );
-  const values = normalized.split(/[+/]/).flatMap(expandAdministrativeToken);
+  const values = normalized
+    .split(/[+/]/)
+    .flatMap(splitAdministrativeSegments)
+    .flatMap(expandAdministrativeToken);
   return [...new Set(values.filter(Boolean))];
+}
+
+function splitAdministrativeSegments(value: string): string[] {
+  // 쉼표는 `부곡1,4동`처럼 번호를 묶는 기호이면서
+  // `괴정1~3동,하단1~2동`처럼 서로 다른 지역을 나누는 기호이기도 하다.
+  // 쉼표 뒤가 숫자가 아닐 때만 독립 지역으로 분리해 두 표기를 모두 보존한다.
+  return value.split(/,(?=[^\d])/);
 }
 
 function expandAdministrativeToken(value: string): string[] {

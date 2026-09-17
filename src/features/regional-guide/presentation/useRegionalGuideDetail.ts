@@ -75,6 +75,7 @@ export function useRegionalGuideDetail(
         if (activeControllerRef.current !== controller) return;
 
         if (result.status === 'not-found') {
+          setCandidateHistory(undefined);
           setState({ status: 'not-found' });
           return;
         }
@@ -83,6 +84,7 @@ export function useRegionalGuideDetail(
           return;
         }
 
+        setCandidateHistory(undefined);
         const selection = selectRegionalGuideCandidate(result.guides, query);
         if (selection.status === 'candidates') {
           setState({
@@ -159,6 +161,8 @@ export function useRegionalGuideDetail(
     const candidates = candidateHistory;
     if (!candidates) return false;
 
+    activeControllerRef.current?.abort();
+    activeControllerRef.current = undefined;
     setCandidateHistory(undefined);
     setState(candidates);
     return true;
