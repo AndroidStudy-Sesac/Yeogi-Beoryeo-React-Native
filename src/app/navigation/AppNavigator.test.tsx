@@ -18,6 +18,8 @@ import {
   createMapNavigationTarget,
   createRegionalGuideNavigationTarget,
 } from './navigationTargets';
+import { loadItemCatalog } from '../../features/item-search/data/itemCatalog';
+import { itemSearchScreens } from './itemSearchScreens';
 import {
   AppNavigator,
   type AppScreenRegistry,
@@ -161,12 +163,12 @@ const screens: AppScreenRegistry = {
   SettingsDetail: UnusedTestScreen,
 };
 
-async function renderNavigator() {
+async function renderNavigator(registry: AppScreenRegistry = screens) {
   const navigation = createNavigationContainerRef<AppTabParamList>();
   const result = await render(
     <SafeAreaProvider>
       <NavigationContainer ref={navigation}>
-        <AppNavigator screens={screens} />
+        <AppNavigator screens={registry} />
       </NavigationContainer>
     </SafeAreaProvider>,
   );
@@ -174,6 +176,32 @@ async function renderNavigator() {
 }
 
 describe('<AppNavigator />', () => {
+  it('실제 검색과 상세 화면을 등록하면 탭 이동 뒤에도 검색 맥락을 유지합니다', async () => {
+    const { getByRole, getByLabelText, getByText } = await renderNavigator({ ...screens, ...itemSearchScreens });
+    await fireEvent.changeText(getByLabelText('품목 검색 창'), '건전지');
+    await fireEvent.press(getByRole('button', { name: '검색' }));
+    await waitFor(() => expect(getByText('‘건전지’ 검색 결과 3개')).toBeTruthy());
+    await fireEvent.changeText(getByLabelText('품목 검색 창'), '종이');
+    await fireEvent.press(getByRole('button', { name: /^AA 건전지,/ }));
+    await waitFor(() => expect(getByRole('header', { name: 'AA 건전지' })).toBeTruthy());
+    await fireEvent.press(getByRole('button', { name: '지도 탭' }));
+    await fireEvent.press(getByRole('button', { name: '홈 탭' }));
+    await waitFor(() => expect(getByLabelText('품목 검색 창')).toHaveProp('value', '종이'));
+    expect(getByText('‘건전지’ 검색 결과 3개')).toBeTruthy();
+  });
+
+  it('저장 경로로 연 실제 상세 화면은 해당 품목을 표시하고 저장으로 복귀합니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
+    const guide = loadItemCatalog().search('AA 건전지')[0];
+    const target = createItemGuideDetailNavigationTarget(guide.id, 'FAVORITES');
+    await act(() => navigation.dispatch(CommonActions.navigate(target.name, target.params)));
+    await waitFor(() => expect(getByRole('header', { name: 'AA 건전지' })).toBeTruthy());
+    expect(getByRole('button', { name: '저장 탭' })).toHaveProp('accessibilityState', { selected: true });
+    await fireEvent.press(getByRole('button', { name: '뒤로가기' }));
+    await waitFor(() => expect(getByText('저장 테스트 화면')).toBeTruthy());
+    expect(navigation.getCurrentRoute()?.name).toBe('Favorites');
+  });
+
   it('홈, 지도, 안내, 저장 탭을 원본 순서로 표시합니다', async () => {
     const { getAllByRole, getAllByTestId, getByText, queryByText } =
       await renderNavigator();
