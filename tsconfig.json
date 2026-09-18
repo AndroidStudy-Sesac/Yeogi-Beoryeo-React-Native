@@ -4,12 +4,12 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "strict": true,
-    "types": ["jest"]
+    "types": [
+      "jest"
+    ]
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "**/*.tsx"
   ]
 }

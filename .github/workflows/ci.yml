@@ -114,6 +114,8 @@ jobs:
     needs: quality
     runs-on: macos-26
     timeout-minutes: 30
+    env:
+      IPA_BASENAME: yeogi-beoryeo-ios-unsigned-${{ github.run_number }}
 
     steps:
       - name: Checkout
@@ -173,3 +175,28 @@ jobs:
           test -f "$app_path/main.jsbundle"
           test ! -d "$app_path/_CodeSignature"
           test ! -f "$app_path/embedded.mobileprovision"
+
+      - name: Package unsigned iOS IPA
+        if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" \
+            -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$app_path"
+
+          ipa_root="$RUNNER_TEMP/ipa-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$ipa_root/Payload"
+          cp -R "$app_path" "$ipa_root/Payload/"
+          (cd "$ipa_root" && zip -qry "$RUNNER_TEMP/${IPA_BASENAME}.ipa" Payload)
+
+          test -s "$RUNNER_TEMP/${IPA_BASENAME}.ipa"
+          unzip -t "$RUNNER_TEMP/${IPA_BASENAME}.ipa"
+
+      - name: Upload unsigned iOS IPA
+        if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ${{ env.IPA_BASENAME }}
+          path: ${{ runner.temp }}/${{ env.IPA_BASENAME }}.ipa
+          if-no-files-found: error
