@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -77,7 +78,7 @@ describe('<RegionalGuideScreen />', () => {
     const candidates = createYeoksamCandidates();
     const service = serviceReturning({ status: 'candidates', candidates });
     const onRegionSelected = jest.fn();
-    await render(
+    const view = await render(
       <RegionalGuideScreen
         debounceMilliseconds={300}
         onRegionSelected={onRegionSelected}
@@ -101,15 +102,67 @@ describe('<RegionalGuideScreen />', () => {
     expect(
       screen.getAllByText('서울특별시 > 강남구 > 역삼2동'),
     ).toHaveLength(2);
-    expect(onRegionSelected).toHaveBeenCalledWith(candidates[1].region);
+    expect(onRegionSelected).toHaveBeenCalledWith(candidates[1].region, {
+      restoreSearchCandidatesOnBack: true,
+    });
 
-    await fireEvent.press(screen.getByText('검색 결과로 돌아가기'));
+    await view.rerender(
+      <RegionalGuideScreen
+        debounceMilliseconds={300}
+        onRegionSelected={onRegionSelected}
+        regionCatalog={catalog}
+        regionSearchService={service}
+        restoreSearchCandidatesRequestId={1}
+      />,
+    );
     expect(
       screen.getByLabelText('지역 검색 후보 목록, 2개'),
     ).toBeOnTheScreen();
     expect(
       screen.getByLabelText('지역 후보: 서울특별시 강남구 역삼1동'),
     ).toBeOnTheScreen();
+  });
+
+  it('검색 후보에서 시스템 뒤로가기를 소비하고 안내 초기 화면으로 돌아갑니다', async () => {
+    const candidates = createYeoksamCandidates();
+    const service = serviceReturning({ status: 'candidates', candidates });
+    let searchBackHandler: (() => boolean) | undefined;
+    const onSearchBackHandlerChange = jest.fn((handler?: () => boolean) => {
+      searchBackHandler = handler;
+    });
+    await render(
+      <RegionalGuideScreen
+        debounceMilliseconds={300}
+        onSearchBackHandlerChange={onSearchBackHandlerChange}
+        regionCatalog={catalog}
+        regionSearchService={service}
+      />,
+    );
+
+    await selectOption('시·도', '서울특별시');
+    await selectOption('시·군·구', '강남구');
+    const searchInput = screen.getByLabelText('지역명 또는 주소 검색');
+    await fireEvent.changeText(searchInput, '역삼동');
+    await fireEvent(searchInput, 'submitEditing');
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText('지역 검색 후보 목록, 2개'),
+      ).toBeOnTheScreen();
+      expect(searchBackHandler).toBeDefined();
+    });
+
+    await act(async () => {
+      expect(searchBackHandler?.()).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText('지역 검색 후보 목록, 2개'),
+      ).toBeNull();
+      expect(searchInput).toHaveProp('value', '');
+      expect(screen.getByLabelText('시·군·구 선택')).toBeDisabled();
+      expect(searchBackHandler).toBeUndefined();
+    });
   });
 
   it('후보 없음과 검색 실패 재시도를 서로 다른 상태로 표시합니다', async () => {
