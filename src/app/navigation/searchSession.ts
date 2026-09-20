@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { InitialState, NavigationState } from '@react-navigation/native';
 
 import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
-import { APP_SCREEN_ROUTES } from './routes';
+import { APP_SCREEN_ROUTES, BOTTOM_TAB_ROUTES } from './routes';
 
 const STORAGE_KEY = 'item-search-session-v1';
 type SearchSession = { sessionId: string; search: ItemSearchSnapshot; guideId?: string; detailScrollOffset?: number };
@@ -35,7 +35,8 @@ export async function readSearchSession(sessionId: string): Promise<InitialState
       name: APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL, params: { guideId: saved.guideId, source: 'SEARCH',
         ...(saved.detailScrollOffset !== undefined && { scrollOffset: saved.detailScrollOffset }) },
     });
-    return { index: routes.length - 1, routes };
+    return { index: 0, routes: [{ name: BOTTOM_TAB_ROUTES.HOME,
+      state: { index: routes.length - 1, routes } }] };
   } catch {
     // An unreadable session must not prevent a fresh search.
     return undefined;
@@ -46,10 +47,11 @@ export async function readSearchSession(sessionId: string): Promise<InitialState
 export function createSearchSessionWriter(sessionId: string) {
   let pending: Promise<void> = Promise.resolve();
   return (state: NavigationState | undefined): Promise<void> => {
-    const searchRoute = state?.routes.find(route => route.name === APP_SCREEN_ROUTES.ITEM_SEARCH);
+    const homeState = state?.routes.find(route => route.name === BOTTOM_TAB_ROUTES.HOME)?.state;
+    const searchRoute = homeState?.routes.find(route => route.name === APP_SCREEN_ROUTES.ITEM_SEARCH);
     const search = isRecord(searchRoute?.params) ? searchRoute.params.savedSearchState : undefined;
     if (!isSnapshot(search)) return pending;
-    const activeRoute = state?.routes[state.index];
+    const activeRoute = homeState?.routes[homeState.index ?? 0];
     const guideId = activeRoute?.name === APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL &&
       isRecord(activeRoute.params) && typeof activeRoute.params.guideId === 'string'
       ? activeRoute.params.guideId : undefined;
