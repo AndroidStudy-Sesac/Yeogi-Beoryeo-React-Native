@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { RegionalGuideScreen } from '../../features/regional-guide/presentation/RegionalGuideScreen';
 import { AppNavigator, type AppScreenRegistry } from './AppNavigator';
 import type { RegionalGuideStackParamList } from './routes';
+import { itemSearchScreens } from './itemSearchScreens';
 
 function BootstrapScreen() {
   return (
@@ -35,8 +36,7 @@ function RegionalGuideRouteScreen() {
 
 const appScreens = {
   Favorites: BootstrapScreen,
-  ItemGuideDetail: BootstrapScreen,
-  ItemSearch: BootstrapScreen,
+  ...itemSearchScreens,
   ItemUsefulGuide: BootstrapScreen,
   Map: BootstrapScreen,
   QuickCategorySettings: BootstrapScreen,
