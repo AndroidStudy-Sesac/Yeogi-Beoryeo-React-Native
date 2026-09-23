@@ -20,6 +20,8 @@
 
 관리자는 활성화 전에 다음 항목을 설정합니다.
 
+deploy key 사용은 조직 정책에서 허용돼 있어야 합니다. 이 정책은 조직 전체에 적용되므로 저장소 설정만으로 해제할 수 없습니다. 조직에서 사용을 막고 있으면 키 등록과 자동 삭제 활성화를 보류합니다. 자세한 범위는 [GitHub의 deploy key 정책](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-organization-settings/restricting-deploy-keys-in-your-organization)에서 확인합니다.
+
 1. 이 저장소에만 사용할 SSH deploy key를 만들고 쓰기 권한으로 등록합니다. 개인 계정의 SSH 키나 토큰은 재사용하지 않습니다.
 2. `release-cleanup` GitHub Environment를 만들고 실행 허용 브랜치를 `main`으로 한정합니다. 이 환경에 개인 키를 `RELEASE_CLEANUP_SSH_KEY` Secret으로 등록합니다.
 3. 릴리즈 삭제 보호 ruleset에만 `DeployKey`의 `always` 우회를 추가합니다. `main`, `develop` 보호 ruleset에는 우회를 추가하지 않습니다.
