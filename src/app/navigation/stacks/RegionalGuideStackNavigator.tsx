@@ -18,6 +18,10 @@ export function RegionalGuideStackNavigator() {
         component={screens.RegionalGuide}
         name={APP_SCREEN_ROUTES.REGIONAL_GUIDE}
       />
+      <RegionalGuideStack.Screen
+        component={screens.RegionalGuideDetail}
+        name={APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL}
+      />
     </RegionalGuideStack.Navigator>
   );
 }
