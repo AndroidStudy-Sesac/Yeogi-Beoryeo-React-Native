@@ -159,6 +159,7 @@ const screens: AppScreenRegistry = {
   Map: MapTestScreen,
   QuickCategorySettings: UnusedTestScreen,
   RegionalGuide: RegionalGuideTestScreen,
+  RegionalGuideDetail: UnusedTestScreen,
   Settings: UnusedTestScreen,
   SettingsDetail: UnusedTestScreen,
 };

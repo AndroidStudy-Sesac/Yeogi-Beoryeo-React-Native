@@ -72,4 +72,26 @@ describe('<App />', () => {
     await fireEvent.press(restored.getByRole('button', { name: '뒤로가기' }));
     await waitFor(() => expect(restored.getByText('‘건전지’ 검색 결과 3개')).toBeTruthy());
   });
+
+  it('지역 선택에서 상세로 이동하고 복귀하면 선택 상태를 유지합니다', async () => {
+    const { getByLabelText, getByRole, getByText } = await render(<App />);
+    await fireEvent.press(getByRole('button', { name: '안내 탭' }));
+    await waitFor(() => expect(getByText('지역별 배출 가이드')).toBeTruthy());
+
+    await fireEvent.press(getByLabelText('시·도 선택'));
+    await fireEvent.press(getByLabelText('시·도 옵션: 서울특별시'));
+    await fireEvent.press(getByLabelText('시·군·구 선택'));
+    await fireEvent.press(getByLabelText('시·군·구 옵션: 강남구'));
+    await fireEvent.press(getByLabelText('선택한 지역 조회'));
+
+    await waitFor(() =>
+      expect(
+        getByLabelText('선택 지역: 서울특별시 > 강남구'),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(getByLabelText('지역 변경'));
+
+    await waitFor(() => expect(getByText('지역별 배출 가이드')).toBeTruthy());
+    expect(getByText('서울특별시 > 강남구')).toBeTruthy();
+  });
 });

@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
+import type { RegionSelection } from '../../features/regional-guide/domain/Region';
 
 export const BOTTOM_TAB_ROUTES = {
   FAVORITES: 'FavoritesTab',
@@ -17,6 +18,7 @@ export const APP_SCREEN_ROUTES = {
   MAP: 'Map',
   QUICK_CATEGORY_SETTINGS: 'QuickCategorySettings',
   REGIONAL_GUIDE: 'RegionalGuide',
+  REGIONAL_GUIDE_DETAIL: 'RegionalGuideDetail',
   SETTINGS: 'Settings',
   SETTINGS_DETAIL: 'SettingsDetail',
 } as const;
@@ -42,6 +44,10 @@ export type CollectionSpotRouteType =
 
 export type ItemGuideDetailSource = 'SEARCH' | 'FAVORITES';
 export type RegionalGuideEntrySource = 'FAVORITES';
+export type RegionalGuideDetailSource =
+  | 'REGIONAL_GUIDE'
+  | 'MAP'
+  | 'FAVORITES';
 
 export type SettingsDetailRouteType =
   | 'Notice'
@@ -74,6 +80,7 @@ export type MapRouteParams = {
 export type RegionalGuideRouteParams = {
   initialAddress?: string;
   initialKeyword?: string;
+  restoreSearchCandidatesRequestId?: number;
 } & (
   | {
       entrySource: RegionalGuideEntrySource;
@@ -85,6 +92,12 @@ export type RegionalGuideRouteParams = {
       initialFavoriteTargetId?: string;
     }
 );
+
+export type RegionalGuideDetailRouteParams = {
+  selection: RegionSelection;
+  source: RegionalGuideDetailSource;
+  restoreSearchCandidatesOnBack?: boolean;
+};
 
 export type ItemSearchRouteParams = {
   initialQuery?: string;
@@ -121,10 +134,12 @@ export type HomeStackParamList = {
 export type MapStackParamList = {
   Map: MapRouteParams | undefined;
   RegionalGuide: RegionalGuideRouteParams | undefined;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
 };
 
 export type RegionalGuideStackParamList = {
   RegionalGuide: RegionalGuideRouteParams | undefined;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
 };
 
 export type FavoritesStackParamList = {
@@ -132,6 +147,7 @@ export type FavoritesStackParamList = {
   ItemGuideDetail: ItemGuideDetailRouteParams;
   Map: MapRouteParams | undefined;
   RegionalGuide: RegionalGuideRouteParams | undefined;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
 };
 
 export type AppTabParamList = {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -29,7 +29,12 @@ type RegionalGuideScreenProps = Readonly<{
   regionSearchService?: RegionSearchService;
   debounceMilliseconds?: number;
   initialQuery?: string;
-  onRegionSelected?: (selection: RegionSelection) => void;
+  restoreSearchCandidatesRequestId?: number;
+  onSearchBackHandlerChange?: (handler?: () => boolean) => void;
+  onRegionSelected?: (
+    selection: RegionSelection,
+    options?: Readonly<{ restoreSearchCandidatesOnBack: boolean }>,
+  ) => void;
 }>;
 
 type DropdownAnchor = Readonly<{
@@ -54,6 +59,8 @@ export function RegionalGuideScreen({
   regionSearchService,
   debounceMilliseconds,
   initialQuery,
+  onSearchBackHandlerChange,
+  restoreSearchCandidatesRequestId,
   onRegionSelected,
 }: RegionalGuideScreenProps) {
   const search = useRegionSearch({
@@ -63,15 +70,57 @@ export function RegionalGuideScreen({
   });
   const selection = useRegionSelection(regionCatalog);
   const selectPath = selection.selectPath;
+  const restoreSearchCandidates = search.restoreCandidates;
   const [candidateHistory, setCandidateHistory] = useState<
     readonly RegionSearchCandidate[]
   >([]);
+  const [candidateScrollOffset, setCandidateScrollOffset] = useState(0);
+  const handledRestoreRequestRef = useRef(restoreSearchCandidatesRequestId);
+  const cancelSearch = search.cancel;
+
+  const resetToInitialState = useCallback(() => {
+    cancelSearch();
+    selectPath({});
+    setCandidateHistory([]);
+    setCandidateScrollOffset(0);
+    return true;
+  }, [cancelSearch, selectPath]);
+
+  useEffect(() => {
+    const handler =
+      search.state.status === 'candidates' ? resetToInitialState : undefined;
+    onSearchBackHandlerChange?.(handler);
+    return () => onSearchBackHandlerChange?.(undefined);
+  }, [
+    onSearchBackHandlerChange,
+    resetToInitialState,
+    search.state.status,
+  ]);
 
   useEffect(() => {
     if (search.state.status !== 'resolved') return;
     selectPath(search.state.candidate.region);
-    onRegionSelected?.(search.state.candidate.region);
-  }, [onRegionSelected, search.state, selectPath]);
+    onRegionSelected?.(search.state.candidate.region, {
+      restoreSearchCandidatesOnBack: candidateHistory.length > 0,
+    });
+  }, [candidateHistory.length, onRegionSelected, search.state, selectPath]);
+
+  useEffect(() => {
+    if (
+      restoreSearchCandidatesRequestId === undefined ||
+      handledRestoreRequestRef.current === restoreSearchCandidatesRequestId
+    ) {
+      return;
+    }
+    handledRestoreRequestRef.current = restoreSearchCandidatesRequestId;
+    if (candidateHistory.length > 0) {
+      restoreSearchCandidates(candidateHistory);
+    }
+  }, [
+    candidateHistory,
+    restoreSearchCandidatesRequestId,
+    restoreSearchCandidates,
+  ]);
 
   const selectManualRegion = (level: RegionLevel, region: Region) => {
     selection.selectRegion(level, region);
@@ -104,11 +153,14 @@ export function RegionalGuideScreen({
         <RegionSearchField
           onChangeText={value => {
             setCandidateHistory([]);
+            setCandidateScrollOffset(0);
             search.setQuery(value);
           }}
           onSearch={() => void search.search()}
+          onScrollOffsetChange={setCandidateScrollOffset}
           onSelectCandidate={selectSearchCandidate}
           query={search.query}
+          scrollOffset={candidateScrollOffset}
           state={search.state}
         />
 
@@ -160,7 +212,11 @@ export function RegionalGuideScreen({
             accessibilityRole="button"
             accessibilityState={{ disabled: !canConfirmSelection }}
             disabled={!canConfirmSelection}
-            onPress={() => onRegionSelected?.(selection.selection)}
+            onPress={() =>
+              onRegionSelected?.(selection.selection, {
+                restoreSearchCandidatesOnBack: false,
+              })
+            }
             style={({ pressed }) => [
               styles.lookupButton,
               !canConfirmSelection && styles.lookupButtonDisabled,
@@ -180,7 +236,7 @@ export function RegionalGuideScreen({
 
         <SearchStatus
           candidateHistory={candidateHistory}
-          onRestoreCandidates={() => search.restoreCandidates(candidateHistory)}
+          onRestoreCandidates={() => restoreSearchCandidates(candidateHistory)}
           onRetry={() => void search.search()}
           state={search.state}
         />
@@ -192,21 +248,35 @@ export function RegionalGuideScreen({
 type RegionSearchFieldProps = Readonly<{
   onChangeText(value: string): void;
   onSearch(): void;
+  onScrollOffsetChange(offset: number): void;
   onSelectCandidate(candidate: RegionSearchCandidate): void;
   query: string;
+  scrollOffset: number;
   state: ReturnType<typeof useRegionSearch>['state'];
 }>;
 
 function RegionSearchField({
   onChangeText,
   onSearch,
+  onScrollOffsetChange,
   onSelectCandidate,
   query,
+  scrollOffset,
   state,
 }: RegionSearchFieldProps) {
+  const candidateScrollRef = useRef<ScrollView>(null);
+  const hadCandidatesRef = useRef(false);
   const [isFocused, setFocused] = useState(false);
   const hasCandidates = state.status === 'candidates';
   const isSearchEnabled = Boolean(query.trim());
+
+  useEffect(() => {
+    const shouldRestore = hasCandidates && !hadCandidatesRef.current;
+    hadCandidatesRef.current = hasCandidates;
+    if (shouldRestore && scrollOffset > 0) {
+      candidateScrollRef.current?.scrollTo({ animated: false, y: scrollOffset });
+    }
+  }, [hasCandidates, scrollOffset]);
 
   return (
     <View style={styles.searchContainer}>
@@ -251,7 +321,15 @@ function RegionSearchField({
           accessibilityLabel={`지역 검색 후보 목록, ${state.candidates.length}개`}
           style={styles.candidatePanel}
         >
-          <ScrollView nestedScrollEnabled style={styles.candidateScrollView}>
+          <ScrollView
+            nestedScrollEnabled
+            onScroll={({ nativeEvent }) =>
+              onScrollOffsetChange(nativeEvent.contentOffset.y)
+            }
+            ref={candidateScrollRef}
+            scrollEventThrottle={16}
+            style={styles.candidateScrollView}
+          >
             {state.candidates.map((candidate, index) => (
               <Pressable
                 accessibilityLabel={`지역 후보: ${candidate.displayName}`}

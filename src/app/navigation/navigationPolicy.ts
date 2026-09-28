@@ -6,6 +6,7 @@ import {
   type AppScreenRouteName,
   type BottomTabRouteName,
   type ItemGuideDetailRouteParams,
+  type RegionalGuideDetailRouteParams,
   type RegionalGuideRouteParams,
 } from './routes';
 
@@ -34,6 +35,7 @@ export type AppRouteSelection =
         | 'Favorites';
     }
   | { name: 'ItemGuideDetail'; params: ItemGuideDetailRouteParams }
+  | { name: 'RegionalGuideDetail'; params: RegionalGuideDetailRouteParams }
   | { name: 'RegionalGuide'; params?: RegionalGuideRouteParams };
 
 export function getBottomTabNavigationAction(
@@ -97,6 +99,10 @@ export function getSelectedBottomTab(
       return BOTTOM_TAB_ROUTES.MAP;
     case APP_SCREEN_ROUTES.REGIONAL_GUIDE:
       return getRegionalGuideBottomTab(route.params);
+    case APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL:
+      if (route.params.source === 'MAP') return BOTTOM_TAB_ROUTES.MAP;
+      if (route.params.source === 'FAVORITES') return BOTTOM_TAB_ROUTES.FAVORITES;
+      return BOTTOM_TAB_ROUTES.REGIONAL_GUIDE;
     case APP_SCREEN_ROUTES.FAVORITES:
       return BOTTOM_TAB_ROUTES.FAVORITES;
     case APP_SCREEN_ROUTES.ITEM_USEFUL_GUIDE:
