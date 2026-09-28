@@ -22,10 +22,11 @@
 
 deploy key 사용은 조직 정책에서 허용돼 있어야 합니다. 이 정책은 조직 전체에 적용되므로 저장소 설정만으로 해제할 수 없습니다. 조직에서 사용을 막고 있으면 키 등록과 자동 삭제 활성화를 보류합니다. 자세한 범위는 [GitHub의 deploy key 정책](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-organization-settings/restricting-deploy-keys-in-your-organization)에서 확인합니다.
 
-1. 이 저장소에만 사용할 SSH deploy key를 만들고 쓰기 권한으로 등록합니다. 개인 계정의 SSH 키나 토큰은 재사용하지 않습니다.
-2. `release-cleanup` GitHub Environment를 만들고 실행 허용 브랜치를 `main`으로 한정합니다. 이 환경에 개인 키를 `RELEASE_CLEANUP_SSH_KEY` Secret으로 등록합니다.
-3. 릴리즈 삭제 보호 ruleset에만 `DeployKey`의 `always` 우회를 추가합니다. `main`, `develop` 보호 ruleset에는 우회를 추가하지 않습니다.
-4. GitHub의 `DeployKey` 우회는 특정 키 하나가 아니라 deploy key 유형 전체에 적용되므로, 이후 쓰기 가능한 deploy key를 추가할 때 같은 삭제 권한을 갖는지 확인합니다.
+1. 저장소와 조직의 Actions > Policies에서 적용되는 이벤트 정책과 Policy insights를 확인합니다. 공개 저장소의 기본 정책은 2026년 11월 2일부터 `pull_request_target`을 차단할 예정입니다. 이 워크플로가 차단 대상이면 적용 정책에서 `.github/workflows/release-cleanup.yml`의 `pull_request_target` 실행을 명시적으로 허용한 뒤 활성화합니다. 정책을 확인하거나 허용할 수 없으면 자동 삭제를 보류합니다. 자세한 내용은 [GitHub의 `pull_request_target` 보안 안내](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)에서 확인합니다.
+2. 이 저장소에만 사용할 SSH deploy key를 만들고 쓰기 권한으로 등록합니다. 개인 계정의 SSH 키나 토큰은 재사용하지 않습니다.
+3. `release-cleanup` GitHub Environment를 만들고 실행 허용 브랜치를 `main`으로 한정합니다. 이 환경에 개인 키를 `RELEASE_CLEANUP_SSH_KEY` Secret으로 등록합니다.
+4. 릴리즈 삭제 보호 ruleset에만 `DeployKey`의 `always` 우회를 추가합니다. `main`, `develop` 보호 ruleset에는 우회를 추가하지 않습니다.
+5. GitHub의 `DeployKey` 우회는 특정 키 하나가 아니라 deploy key 유형 전체에 적용되므로, 이후 쓰기 가능한 deploy key를 추가할 때 같은 삭제 권한을 갖는지 확인합니다.
 
 일반 GitHub Actions 토큰은 조회에만 사용합니다. 정리 워크플로는 PR 브랜치의 코드, 의존성 설치나 빌드를 실행하지 않습니다. 관리자는 환경 Secret과 기본 브랜치의 워크플로 수정 권한을 함께 점검합니다.
 
