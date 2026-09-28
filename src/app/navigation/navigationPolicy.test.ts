@@ -64,6 +64,19 @@ describe('화면별 선택 탭', () => {
       getSelectedBottomTab({ name: APP_SCREEN_ROUTES.ITEM_USEFUL_GUIDE }),
     ).toBeUndefined();
   });
+
+  it.each([
+    ['REGIONAL_GUIDE' as const, BOTTOM_TAB_ROUTES.REGIONAL_GUIDE],
+    ['MAP' as const, BOTTOM_TAB_ROUTES.MAP],
+    ['FAVORITES' as const, BOTTOM_TAB_ROUTES.FAVORITES],
+  ])('지역 상세 출처 %s에 맞는 탭을 유지합니다', (source, expectedTab) => {
+    expect(
+      getSelectedBottomTab({
+        name: APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL,
+        params: { selection: {}, source },
+      }),
+    ).toBe(expectedTab);
+  });
 });
 
 describe('지역 가이드 진입 출처', () => {

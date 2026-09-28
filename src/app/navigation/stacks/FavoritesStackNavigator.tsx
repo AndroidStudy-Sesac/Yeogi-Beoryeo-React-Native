@@ -29,6 +29,10 @@ export function FavoritesStackNavigator() {
         component={screens.RegionalGuide}
         name={APP_SCREEN_ROUTES.REGIONAL_GUIDE}
       />
+      <FavoritesStack.Screen
+        component={screens.RegionalGuideDetail}
+        name={APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL}
+      />
     </FavoritesStack.Navigator>
   );
 }
