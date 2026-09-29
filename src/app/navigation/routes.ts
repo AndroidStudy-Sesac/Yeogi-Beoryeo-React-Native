@@ -93,6 +93,7 @@ export type RegionalGuideRouteParams = {
 );
 
 export type RegionalGuideDetailRouteParams = {
+  initialFavoriteTargetId?: string;
   selection: RegionSelection;
   source: RegionalGuideDetailSource;
   restoreSearchCandidatesOnBack?: boolean;
