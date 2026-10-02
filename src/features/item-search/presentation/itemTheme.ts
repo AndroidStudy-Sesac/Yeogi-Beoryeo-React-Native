@@ -16,7 +16,7 @@ const lightColors = {
   background: '#FFFFFF', text: '#1A1C19', muted: '#424940', outline: '#DDE5DD', fieldOutline: '#737A70',
   primary: '#2E7D32', onPrimary: '#FFFFFF', primaryContainer: '#C8E6C9', onPrimaryContainer: '#0B3D0E',
   secondaryContainer: '#E8F5E0', onSecondaryContainer: '#173A08',
-  tertiaryContainer: '#FFECB3', onTertiaryContainer: '#4E3400',
+  tertiary: '#F9A825', tertiaryContainer: '#FFECB3', onTertiaryContainer: '#4E3400',
   errorContainer: '#FFDAD6', onErrorContainer: '#7A0000', surfaceVariant: '#DDE5DD',
 };
 
@@ -24,7 +24,7 @@ const darkColors: typeof lightColors = {
   background: '#121411', text: '#E2E3DF', muted: '#C1C9C0', outline: '#424940', fieldOutline: '#8B9388',
   primary: '#8EDB91', onPrimary: '#00390A', primaryContainer: '#1D5F22', onPrimaryContainer: '#C8E6C9',
   secondaryContainer: '#365F1D', onSecondaryContainer: '#E8F5E0',
-  tertiaryContainer: '#8A6400', onTertiaryContainer: '#FFECB3',
+  tertiary: '#FFD54F', tertiaryContainer: '#8A6400', onTertiaryContainer: '#FFECB3',
   errorContainer: '#9F1F1F', onErrorContainer: '#FFDAD6', surfaceVariant: '#424940',
 };
 

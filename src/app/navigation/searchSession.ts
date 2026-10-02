@@ -2,10 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { InitialState, NavigationState } from '@react-navigation/native';
 
 import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
+import { isHomeSnapshot, type ItemHomeSnapshot } from '../../features/item-search/presentation/homeLayout';
 import { APP_SCREEN_ROUTES, BOTTOM_TAB_ROUTES } from './routes';
 
 const STORAGE_KEY = 'item-search-session-v1';
-type SearchSession = { sessionId: string; search: ItemSearchSnapshot; guideId?: string; detailScrollOffset?: number };
+type SearchSession = { sessionId: string; search: ItemSearchSnapshot; home?: ItemHomeSnapshot; guideId?: string; detailScrollOffset?: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -29,7 +30,7 @@ export async function readSearchSession(sessionId: string): Promise<InitialState
         !Number.isFinite(saved.detailScrollOffset) || saved.detailScrollOffset < 0))) return;
     const routes: InitialState['routes'] = [{
       name: APP_SCREEN_ROUTES.ITEM_SEARCH,
-      params: { savedSearchState: saved.search },
+      params: { savedSearchState: saved.search, ...(isHomeSnapshot(saved.home) && { savedHomeState: saved.home }) },
     }];
     if (typeof saved.guideId === 'string') routes.push({
       name: APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL, params: { guideId: saved.guideId, source: 'SEARCH',
@@ -52,12 +53,13 @@ export function createSearchSessionWriter(sessionId: string) {
     const search = isRecord(searchRoute?.params) ? searchRoute.params.savedSearchState : undefined;
     if (!isSnapshot(search)) return pending;
     const activeRoute = homeState?.routes[homeState.index ?? 0];
+    const home = isRecord(searchRoute?.params) ? searchRoute.params.savedHomeState : undefined;
     const guideId = activeRoute?.name === APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL &&
       isRecord(activeRoute.params) && typeof activeRoute.params.guideId === 'string'
       ? activeRoute.params.guideId : undefined;
     const offset = isRecord(activeRoute?.params) ? activeRoute.params.scrollOffset : undefined;
     const detailScrollOffset = typeof offset === 'number' && Number.isFinite(offset) && offset >= 0 ? offset : undefined;
-    const saved: SearchSession = { sessionId, search, ...(guideId && { guideId }),
+    const saved: SearchSession = { sessionId, search, ...(isHomeSnapshot(home) && { home }), ...(guideId && { guideId }),
       ...(guideId && detailScrollOffset !== undefined && { detailScrollOffset }) };
     const serialized = JSON.stringify(saved);
     pending = pending.then(() => AsyncStorage.setItem(STORAGE_KEY, serialized)).catch(() => {

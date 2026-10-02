@@ -12,6 +12,10 @@ export const itemCategories = {
 export type ItemCategory = keyof typeof itemCategories;
 
 export function getItemCategory(guide: ItemGuide): ItemCategory {
+  if (guide.sections) {
+    return (Object.keys(itemCategories) as ItemCategory[]).find(
+      category => itemCategories[category] === guide.categoryPaths[0]?.[0]) ?? 'other';
+  }
   const leaves = guide.categoryPaths.map(path => path[path.length - 1]);
   const has = (...labels: string[]) => leaves.some(leaf => labels.includes(leaf));
   if (has('음식물류폐기물')) return 'food_waste';
@@ -38,7 +42,7 @@ export function getItemCategory(guide: ItemGuide): ItemCategory {
 export function getItemDisplay(guide: ItemGuide) {
   const category = getItemCategory(guide);
   const leaves = guide.categoryPaths.map(path => path[path.length - 1]);
-  const subcategory = leaves.includes('무색페트병') ? '투명페트병'
+  const subcategory = guide.sections ? null : leaves.includes('무색페트병') ? '투명페트병'
     : leaves.includes('금속류 금속캔') ? '알루미늄캔'
       : leaves.includes('금속류 고철') ? '고철'
         : leaves.some(leaf => leaf.startsWith('종이팩')) ? '우유팩' : null;
@@ -56,7 +60,7 @@ export function getItemDisplay(guide: ItemGuide) {
     subcategory,
     disposalRoute,
     summary: firstMethod === '일반종량제폐기물' ? '종량제봉투' : firstMethod,
-    sections: [
+    sections: guide.sections ?? [
       { title: '배출방법', lines: guide.dischargeMethods },
       { title: '특징', lines: guide.features },
       { title: '유의사항', lines: guide.notes },

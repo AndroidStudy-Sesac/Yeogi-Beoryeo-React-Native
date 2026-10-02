@@ -52,7 +52,7 @@ export function ItemMetadata({ guide }: { guide: ItemGuide }) {
           ? <ItemIcon name="disposal_route_report" size={20} color={colors.onTertiaryContainer} />
           : <Text style={[styles.chipText, { color: colors.onPrimaryContainer }]}>{display.disposalRoute}</Text>}
     </View>}
-    {[display.categoryLabel, display.subcategory].filter(Boolean).map(label =>
+    {(guide.sections ? [] : [display.categoryLabel, display.subcategory]).filter(Boolean).map(label =>
       <View key={label} style={[styles.chip, { backgroundColor: colors.secondaryContainer }]}>
         <Text style={[styles.chipText, { color: colors.onSecondaryContainer }]}>{label}</Text>
       </View>)}
@@ -77,7 +77,9 @@ export function ItemStatus({ loading, title, description, onRetry }: {
   </View>;
 }
 
-export function ItemSection({ title, lines }: { title: string; lines: readonly string[] }) {
+export function ItemSection({ title, lines, rows = [] }: {
+  title: string; lines: readonly string[]; rows?: readonly Readonly<{ label: string; value: string }>[];
+}) {
   const colors = useItemColors();
   const { fontScale } = useWindowDimensions();
   return <View style={[styles.section, { borderColor: colors.outline }]}>
@@ -85,6 +87,10 @@ export function ItemSection({ title, lines }: { title: string; lines: readonly s
     <View style={styles.sectionLines}>
       {lines.map((line, index) => <ItemText key={index} style={[styles.body, { color: colors.muted },
         usesLargeItemTypography(fontScale) && styles.largeBody]}>{line}</ItemText>)}
+      {rows.map(row => <View key={row.label} style={[styles.tableRow, { borderColor: colors.outline }]}>
+        <ItemText style={[styles.body, { color: colors.text, fontFamily: itemFonts.bold }]}>{row.label}</ItemText>
+        <ItemText style={[styles.body, { color: colors.muted }]}>{row.value}</ItemText>
+      </View>)}
     </View>
   </View>;
 }
@@ -106,6 +112,7 @@ const styles = StyleSheet.create({
   retryText: { fontFamily: itemFonts.medium, fontSize: 14, lineHeight: 20 },
   section: { borderWidth: 1, borderRadius: 28, padding: 23, gap: 12 },
   sectionLines: { gap: 8 },
+  tableRow: { borderTopWidth: 1, paddingTop: 12, gap: 8 },
   sectionTitle: { fontFamily: itemFonts.bold, fontSize: 16, lineHeight: 24 },
   body: { fontFamily: itemFonts.regular, fontSize: 16, lineHeight: 24 },
   largeSectionTitle: { fontSize: 22, lineHeight: 28 },

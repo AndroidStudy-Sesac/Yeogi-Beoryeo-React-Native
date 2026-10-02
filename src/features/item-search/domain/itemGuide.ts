@@ -7,4 +7,10 @@ export type ItemGuide = Readonly<{
   dischargeMethods: readonly string[];
   features: readonly string[];
   notes: readonly string[];
+  sections?: readonly Readonly<{
+    title: string;
+    lines: readonly string[];
+    rows: readonly Readonly<{ label: string; value: string }>[];
+  }>[];
+  relatedSpotTypes?: readonly string[];
 }>;

@@ -21,6 +21,22 @@ function tabState(home = navigationState()): NavigationState {
 
 beforeEach(async () => { await AsyncStorage.clear(); jest.clearAllMocks(); });
 
+it('홈 펼침, 안내 페이지와 스크롤을 상세 복귀와 함께 복원합니다', async () => {
+  const savedHomeState = { expanded: true, collapsedCount: 8, scrollOffset: 520, collapsedScrollOffset: 32, guidePage: 2 };
+  const state = navigationState();
+  state.routes[0] = { ...state.routes[0], params: { ...state.routes[0].params, savedHomeState } };
+  await createSearchSessionWriter('home-task')(tabState(state));
+  const restored = (await readSearchSession('home-task'))?.routes[0].state;
+  expect(restored?.routes[0].params).toMatchObject({ savedHomeState });
+  expect(restored?.index).toBe(1);
+});
+
+it('잘못된 홈 상태는 버리고 유효한 검색 상태를 보존합니다', async () => {
+  jest.mocked(AsyncStorage.getItem).mockResolvedValueOnce(JSON.stringify({ sessionId: 'task', search: snapshot,
+    home: { expanded: true, collapsedCount: 8, scrollOffset: -1, collapsedScrollOffset: 0, guidePage: 99 } }));
+  expect((await readSearchSession('task'))?.routes[0].state?.routes[0].params).toEqual({ savedSearchState: snapshot });
+});
+
 it('같은 Android 작업이 복원되면 편집 입력, 제출 검색어, 스크롤과 상세 ID를 복원합니다', async () => {
   await createSearchSessionWriter('android-task-1')(tabState());
   const restored = await readSearchSession('android-task-1');

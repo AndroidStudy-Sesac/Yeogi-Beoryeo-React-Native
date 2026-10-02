@@ -151,11 +151,8 @@ function regionalGuideDetailSource(
 }
 
 const appScreens = {
-  Favorites: BootstrapScreen,
   ...itemSearchScreens,
-  ItemUsefulGuide: BootstrapScreen,
   Map: BootstrapScreen,
-  QuickCategorySettings: BootstrapScreen,
   RegionalGuide: RegionalGuideRouteScreen,
   RegionalGuideDetail: RegionalGuideDetailRouteScreen,
   Settings: BootstrapScreen,

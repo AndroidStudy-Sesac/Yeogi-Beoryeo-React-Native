@@ -20,6 +20,7 @@ import {
 } from './navigationTargets';
 import { loadItemCatalog } from '../../features/item-search/data/itemCatalog';
 import { itemSearchScreens } from './itemSearchScreens';
+import { ItemPreferencesProvider } from '../../features/item-search/presentation/ItemPreferencesContext';
 import {
   AppNavigator,
   type AppScreenRegistry,
@@ -168,15 +169,22 @@ async function renderNavigator(registry: AppScreenRegistry = screens) {
   const navigation = createNavigationContainerRef<AppTabParamList>();
   const result = await render(
     <SafeAreaProvider>
-      <NavigationContainer ref={navigation}>
+      <ItemPreferencesProvider><NavigationContainer ref={navigation}>
         <AppNavigator screens={registry} />
-      </NavigationContainer>
+      </NavigationContainer></ItemPreferencesProvider>
     </SafeAreaProvider>,
   );
   return { ...result, navigation };
 }
 
 describe('<AppNavigator />', () => {
+  it('대표 가이드에서 지도 이동 시 수거함 유형을 전달합니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
+    const target = createItemGuideDetailNavigationTarget('item-guide-0010');
+    await act(() => navigation.dispatch(CommonActions.navigate(target.name, target.params)));
+    await fireEvent.press(getByRole('button', { name: '근처 폐건전지 수거함 찾기' }));
+    await waitFor(() => expect(getByText('지도 종류 BATTERY_BIN')).toBeTruthy());
+  });
   it('실제 검색과 상세 화면을 등록하면 탭 이동 뒤에도 검색 맥락을 유지합니다', async () => {
     const { getByRole, getByLabelText, getByText } = await renderNavigator({ ...screens, ...itemSearchScreens });
     await fireEvent.changeText(getByLabelText('품목 검색 창'), '건전지');
@@ -192,14 +200,14 @@ describe('<AppNavigator />', () => {
   });
 
   it('저장 경로로 연 실제 상세 화면은 해당 품목을 표시하고 저장으로 복귀합니다', async () => {
-    const { getByRole, getByText, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
+    const { getByRole, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
     const guide = loadItemCatalog().search('AA 건전지')[0];
     const target = createItemGuideDetailNavigationTarget(guide.id, 'FAVORITES');
     await act(() => navigation.dispatch(CommonActions.navigate(target.name, target.params)));
     await waitFor(() => expect(getByRole('header', { name: 'AA 건전지' })).toBeTruthy());
     expect(getByRole('button', { name: '저장 탭' })).toHaveProp('accessibilityState', { selected: true });
     await fireEvent.press(getByRole('button', { name: '뒤로가기' }));
-    await waitFor(() => expect(getByText('저장 테스트 화면')).toBeTruthy());
+    await waitFor(() => expect(getByRole('header', { name: '즐겨찾기' })).toBeTruthy());
     expect(navigation.getCurrentRoute()?.name).toBe('Favorites');
   });
 

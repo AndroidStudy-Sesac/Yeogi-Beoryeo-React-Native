@@ -2,6 +2,7 @@ import type { ItemGuide } from '../domain/itemGuide';
 import { ItemSearchIndex } from '../domain/itemSearch';
 import rawItems from './assets/item_disposal_guides.json';
 import rawSynonyms from './assets/synonyms.json';
+import rawRepresentatives from './assets/representative_guide_details.json';
 
 function record(value: unknown, path: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -77,4 +78,41 @@ let bundledIndex: ItemSearchIndex | undefined;
 export function loadItemCatalog(): ItemSearchIndex {
   bundledIndex ??= new ItemSearchIndex(parseItemGuides(rawItems), parseSynonyms(rawSynonyms));
   return bundledIndex;
+}
+
+let representatives: readonly ItemGuide[] | undefined;
+
+export function loadRepresentativeGuides(): readonly ItemGuide[] {
+  representatives ??= Object.entries(rawRepresentatives).map(([name, raw]) => {
+    const guide = record(raw, name);
+    if (!Array.isArray(guide.sections)) throw new TypeError(`${name}.sections must be an array.`);
+    const sections = guide.sections.map((rawSection, index) => {
+      const path = `${name}.sections[${index}]`;
+      const section = record(rawSection, path);
+      const rawRows = section.rows ?? [];
+      if (!Array.isArray(rawRows)) throw new TypeError(`${path}.rows must be an array.`);
+      return {
+        title: text(section.title, `${path}.title`),
+        lines: strings(section.lines ?? [], `${path}.lines`),
+        rows: rawRows.map((rawRow, rowIndex) => {
+          const row = record(rawRow, `${path}.rows[${rowIndex}]`);
+          return { label: text(row.label, `${path}.row.label`), value: text(row.value, `${path}.row.value`) };
+        }),
+      };
+    });
+    return {
+      id: text(guide.id, `${name}.id`), name,
+      legacyNames: strings(guide.legacyNames ?? [], `${name}.legacyNames`),
+      categoryPaths: [[text(guide.sourceCategory, `${name}.sourceCategory`)]],
+      similarItems: [], dischargeMethods: [], features: [], notes: [], sections,
+      relatedSpotTypes: strings(guide.relatedSpotTypes ?? [], `${name}.relatedSpotTypes`),
+    };
+  });
+  return representatives;
+}
+
+export function loadItemGuide(identifier: string): ItemGuide | null {
+  return loadRepresentativeGuides().find(guide =>
+    guide.id === identifier || guide.name === identifier || guide.legacyNames.includes(identifier))
+    ?? loadItemCatalog().getItemGuide(identifier);
 }

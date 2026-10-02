@@ -11,6 +11,28 @@ afterEach(async () => {
 });
 
 describe('<App />', () => {
+  it('홈의 대표 가이드를 저장하고 저장 탭에서 상세를 열었다 돌아옵니다', async () => {
+    await AsyncStorage.clear();
+    const view = await render(<App />);
+    await fireEvent.press(view.getByRole('button', { name: '종이 배출 방법 보기' }));
+    await waitFor(() => expect(view.getByRole('header', { name: '종이' })).toBeTruthy());
+    await fireEvent.press(view.getByRole('button', { name: '즐겨찾기 추가' }));
+    await waitFor(() => expect(view.getByRole('button', { name: '즐겨찾기 해제' })).toBeTruthy());
+    await fireEvent.press(view.getByRole('button', { name: '저장 탭' }));
+    await fireEvent.press(view.getByRole('button', { name: '종이 상세 보기' }));
+    await waitFor(() => expect(view.getByRole('header', { name: '종이' })).toBeTruthy());
+    await fireEvent.press(view.getByRole('button', { name: '뒤로가기' }));
+    await waitFor(() => expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+    await view.unmount();
+    const reopened = await render(<App />);
+    await fireEvent.press(reopened.getByRole('button', { name: '저장 탭' }));
+    await waitFor(() => expect(reopened.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+    await fireEvent.press(reopened.getByRole('button', { name: '종이 즐겨찾기 해제' }));
+    await waitFor(() => expect(reopened.getByLabelText('아직 즐겨찾기한 품목이 없어요')).toBeTruthy());
+    await fireEvent.press(reopened.getByRole('button', { name: '품목 검색' }));
+    await waitFor(() => expect(reopened.getByLabelText('품목 검색 창')).toBeTruthy());
+  });
+
   it('Android 복원 세션에서 제출 결과와 다른 편집 입력을 함께 복원합니다', async () => {
     jest.mocked(AsyncStorage.getItem).mockResolvedValueOnce(JSON.stringify({
       sessionId: 'restored-task', search: { query: '종이', submittedQuery: '건전지',
