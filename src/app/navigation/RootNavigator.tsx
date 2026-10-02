@@ -21,6 +21,7 @@ import { RegionalGuideScreen } from '../../features/regional-guide/presentation/
 import { RegionalGuideDetailScreen } from '../../features/regional-guide/presentation/RegionalGuideDetailScreen';
 import { useRegionalGuideFavorites } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
 import { AppNavigator, type AppScreenRegistry } from './AppNavigator';
+import { itemSearchScreens } from './itemSearchScreens';
 import { getRegionalGuideBottomTab } from './navigationPolicy';
 import {
   APP_SCREEN_ROUTES,
@@ -263,8 +264,7 @@ function regionalGuideDetailSource(
 
 const appScreens = {
   Favorites: FavoritesScreen,
-  ItemGuideDetail: BootstrapScreen,
-  ItemSearch: BootstrapScreen,
+  ...itemSearchScreens,
   ItemUsefulGuide: BootstrapScreen,
   Map: BootstrapScreen,
   QuickCategorySettings: BootstrapScreen,

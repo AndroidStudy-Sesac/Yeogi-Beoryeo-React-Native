@@ -1,5 +1,6 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
 import type { RegionSelection } from '../../features/regional-guide/domain/Region';
 
 export const BOTTOM_TAB_ROUTES = {
@@ -101,6 +102,7 @@ export type RegionalGuideDetailRouteParams = {
 
 export type ItemSearchRouteParams = {
   initialQuery?: string;
+  savedSearchState?: ItemSearchSnapshot;
 };
 
 export type QuickCategorySettingsRouteParams = {
@@ -118,6 +120,7 @@ export type ItemUsefulGuideRouteParams = {
 export type ItemGuideDetailRouteParams = {
   guideId: string;
   source?: ItemGuideDetailSource;
+  scrollOffset?: number;
 };
 
 export type HomeStackParamList = {
