@@ -12,6 +12,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { RegionalGuideScreen } from '../../features/regional-guide/presentation/RegionalGuideScreen';
 import { RegionalGuideDetailScreen } from '../../features/regional-guide/presentation/RegionalGuideDetailScreen';
 import { AppNavigator, type AppScreenRegistry } from './AppNavigator';
+import { itemSearchScreens } from './itemSearchScreens';
 import { getRegionalGuideBottomTab } from './navigationPolicy';
 import {
   APP_SCREEN_ROUTES,
@@ -151,8 +152,7 @@ function regionalGuideDetailSource(
 
 const appScreens = {
   Favorites: BootstrapScreen,
-  ItemGuideDetail: BootstrapScreen,
-  ItemSearch: BootstrapScreen,
+  ...itemSearchScreens,
   ItemUsefulGuide: BootstrapScreen,
   Map: BootstrapScreen,
   QuickCategorySettings: BootstrapScreen,

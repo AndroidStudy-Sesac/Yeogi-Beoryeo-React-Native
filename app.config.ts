@@ -48,6 +48,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       scheme: 'yeogi-beoryeo',
       version: '1.0.0',
       orientation: 'portrait',
+      plugins: [
+        ...(config.plugins ?? []),
+        './plugins/withAndroidSearchSession',
+        ['expo-font', {
+          fonts: [
+            './src/app/assets/fonts/Pretendard-Regular.otf',
+            './src/app/assets/fonts/Pretendard-Medium.otf',
+            './src/app/assets/fonts/Pretendard-SemiBold.otf',
+            './src/app/assets/fonts/Pretendard-Bold.otf',
+            './src/app/assets/fonts/Pretendard-ExtraBold.otf',
+          ],
+        }],
+      ],
       ios: {
         ...config.ios,
         bundleIdentifier: identifier,
