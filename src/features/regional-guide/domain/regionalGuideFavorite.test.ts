@@ -59,20 +59,32 @@ describe('지역 가이드 Favorite 식별자', () => {
   });
 
   it('최신 응답에서 저장 당시와 같은 실제 안내 대상을 찾습니다', () => {
-    const storedGuide = guide({ managementZoneName: '2권역' });
+    const storedGuide = guide({
+      managementZoneName: '2권역',
+      sourceMetadata: { managementNumber: 'guide-1' },
+    });
     const favorite = createRegionalGuideFavorite(
       selection,
       storedGuide,
       '2026-09-24T00:00:00.000Z',
     );
+    const latestGuide = {
+      ...storedGuide,
+      disposalPlace: '최신 배출장소',
+      disposalPlaceType: '거점수거',
+      sourceMetadata: { managementNumber: 'guide-2' },
+    };
     const latest = [
       guide({ managementZoneName: '1권역' }),
-      { ...storedGuide, disposalPlace: '최신 배출장소' },
+      latestGuide,
     ];
 
     expect(findFavoriteGuide(favorite, latest)?.disposalPlace).toBe(
       '최신 배출장소',
     );
+    expect(
+      createRegionalGuideFavoriteTargetId(selection, latestGuide),
+    ).toBe(favorite.targetId);
     expect(isRegionalGuideFavorite(favorite)).toBe(true);
   });
 

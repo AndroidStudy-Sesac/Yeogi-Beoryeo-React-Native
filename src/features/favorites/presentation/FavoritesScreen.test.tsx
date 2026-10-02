@@ -96,7 +96,7 @@ describe('<FavoritesScreen />', () => {
     });
     expect(repository.save).not.toHaveBeenCalled();
 
-    await fireEvent.press(screen.getByLabelText(/즐겨찾기$/));
+    await fireEvent.press(screen.getByLabelText(/즐겨찾기 해제$/));
     await waitFor(() => expect(repository.save).toHaveBeenCalledWith([]));
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     expect(
@@ -115,6 +115,35 @@ describe('<FavoritesScreen />', () => {
     expect(screen.getByText('역삼1동 · 2권역')).toBeOnTheScreen();
     expect(screen.queryByText(/수거유형/)).not.toBeOnTheScreen();
     expect(screen.queryByText(/지역 가이드 \d+개/)).not.toBeOnTheScreen();
+  });
+
+  it('같은 지역의 가이드를 대상과 관리구역이 포함된 접근성 이름으로 구분합니다', async () => {
+    await renderScreen(repositoryReturning([fixture('1권역'), fixture('2권역')]));
+
+    await fireEvent.press(
+      await screen.findByLabelText('지역 즐겨찾기 카테고리'),
+    );
+
+    expect(
+      screen.getByLabelText(
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 1권역 지역 가이드 보기',
+      ),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
+      ),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 1권역 즐겨찾기 해제',
+      ),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 즐겨찾기 해제',
+      ),
+    ).toBeOnTheScreen();
   });
 });
 
@@ -135,7 +164,7 @@ function repositoryReturning(
   };
 }
 
-function fixture() {
+function fixture(managementZoneName = '2권역') {
   return createRegionalGuideFavorite(
     {
       sido: { id: 'sido:11', level: 'sido', name: '서울특별시' },
@@ -154,7 +183,7 @@ function fixture() {
     },
     {
       targetRegionName: '역삼1동',
-      managementZoneName: '2권역',
+      managementZoneName,
       disposalPlaceType: '문전수거',
       schedules: [],
     },

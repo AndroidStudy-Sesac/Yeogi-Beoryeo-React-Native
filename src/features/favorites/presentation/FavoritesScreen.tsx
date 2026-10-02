@@ -304,12 +304,13 @@ function FavoriteCard({
   ]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(' · ');
+  const accessibilityName = [title, subtitle].filter(Boolean).join(', ');
 
   return (
     <View style={styles.card}>
       <Pressable
         accessibilityHint="저장한 조건으로 최신 지역 가이드를 다시 조회합니다."
-        accessibilityLabel={`${title} 지역 가이드 보기`}
+        accessibilityLabel={`${accessibilityName} 지역 가이드 보기`}
         accessibilityRole="button"
         onPress={onOpen}
         style={({ pressed }) => [
@@ -331,7 +332,7 @@ function FavoriteCard({
 
       <Pressable
         accessibilityHint="누르면 즐겨찾기에서 삭제됩니다."
-        accessibilityLabel={`${title} 즐겨찾기`}
+        accessibilityLabel={`${accessibilityName} 즐겨찾기 해제`}
         accessibilityRole="button"
         accessibilityState={{ busy: pending, disabled: pending, selected: true }}
         disabled={pending}

@@ -51,6 +51,9 @@ export function RegionalGuideFavoritesProvider({
   const persistedRef = useRef<readonly RegionalGuideFavorite[]>([]);
   const writeChainRef = useRef<Promise<void>>(Promise.resolve());
   const operationVersionRef = useRef(0);
+  const latestOperationVersionByTargetRef = useRef<ReadonlyMap<string, number>>(
+    new Map(),
+  );
   const loadVersionRef = useRef(0);
 
   useEffect(() => {
@@ -109,6 +112,9 @@ export function RegionalGuideFavoritesProvider({
         : current.filter(item => item.targetId !== favorite.targetId);
       desiredRef.current = next;
       const operationVersion = ++operationVersionRef.current;
+      latestOperationVersionByTargetRef.current = new Map(
+        latestOperationVersionByTargetRef.current,
+      ).set(favorite.targetId, operationVersion);
       setPendingCounts(counts => increment(counts, favorite.targetId));
 
       const write = writeChainRef.current
@@ -116,8 +122,15 @@ export function RegionalGuideFavoritesProvider({
         .then(async () => {
           await repository.save(next);
           persistedRef.current = next;
-          if (mountedRef.current && operationVersion === operationVersionRef.current) {
-            setFavorites(next);
+          if (mountedRef.current) {
+            setFavorites(currentFavorites =>
+              reconcilePersistedFavorites(
+                currentFavorites,
+                next,
+                operationVersion,
+                latestOperationVersionByTargetRef.current,
+              ),
+            );
             setMutationError(undefined);
           }
         });
@@ -199,4 +212,31 @@ function decrement(
   if (count <= 0) next.delete(targetId);
   else next.set(targetId, count);
   return next;
+}
+
+function reconcilePersistedFavorites(
+  currentFavorites: readonly RegionalGuideFavorite[],
+  persistedFavorites: readonly RegionalGuideFavorite[],
+  operationVersion: number,
+  latestOperationVersionByTarget: ReadonlyMap<string, number>,
+): readonly RegionalGuideFavorite[] {
+  const currentByTargetId = new Map(
+    currentFavorites.map(favorite => [favorite.targetId, favorite]),
+  );
+  const persistedByTargetId = new Map(
+    persistedFavorites.map(favorite => [favorite.targetId, favorite]),
+  );
+  const targetIds = [
+    ...persistedByTargetId.keys(),
+    ...currentByTargetId.keys(),
+  ].filter((targetId, index, all) => all.indexOf(targetId) === index);
+
+  return targetIds.flatMap(targetId => {
+    const hasNewerOperation =
+      (latestOperationVersionByTarget.get(targetId) ?? 0) > operationVersion;
+    const favorite = hasNewerOperation
+      ? currentByTargetId.get(targetId)
+      : persistedByTargetId.get(targetId);
+    return favorite ? [favorite] : [];
+  });
 }

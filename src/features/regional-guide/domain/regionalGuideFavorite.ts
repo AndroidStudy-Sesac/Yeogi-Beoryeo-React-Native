@@ -47,8 +47,6 @@ export function createRegionalGuideFavoriteTargetId(
     encode(identity.sigunguName),
     encode(identity.targetRegionName),
     encode(identity.managementZoneName),
-    encode(identity.disposalPlaceType),
-    encode(identity.managementNumber),
   ].join('|');
 }
 

@@ -72,6 +72,51 @@ describe('RegionalGuideFavoritesProvider', () => {
     expect(result.current.isPending(favorite.targetId)).toBe(false);
   });
 
+  it('서로 다른 항목은 먼저 저장된 항목부터 화면 상태를 확정합니다', async () => {
+    const firstWrite = deferred<void>();
+    const secondWrite = deferred<void>();
+    const save = jest
+      .fn()
+      .mockImplementationOnce(() => firstWrite.promise)
+      .mockImplementationOnce(() => secondWrite.promise);
+    const repository: RegionalGuideFavoriteRepository = {
+      load: jest.fn(async () => []),
+      save,
+    };
+    const first = fixture('강남구');
+    const second = fixture('서초구');
+    const { result } = await renderHook(() => useRegionalGuideFavorites(), {
+      wrapper: wrapper(repository),
+    });
+    await waitFor(() => expect(result.current.loadState).toBe('ready'));
+
+    let saveFirst!: Promise<void>;
+    let saveSecond!: Promise<void>;
+    await act(async () => {
+      saveFirst = result.current.setFavorite(first, true);
+      saveSecond = result.current.setFavorite(second, true);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      firstWrite.resolve();
+      await saveFirst;
+    });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(result.current.isFavorite(first.targetId)).toBe(true);
+    expect(result.current.isPending(first.targetId)).toBe(false);
+    expect(result.current.isFavorite(second.targetId)).toBe(false);
+    expect(result.current.isPending(second.targetId)).toBe(true);
+
+    await act(async () => {
+      secondWrite.resolve();
+      await saveSecond;
+    });
+    expect(result.current.isFavorite(second.targetId)).toBe(true);
+    expect(result.current.isPending(second.targetId)).toBe(false);
+  });
+
   it('쓰기 실패 시 마지막 정상 저장 상태를 유지하고 실패 피드백을 냅니다', async () => {
     const repository: RegionalGuideFavoriteRepository = {
       load: jest.fn(async () => []),
@@ -144,7 +189,7 @@ function wrapper(repository: RegionalGuideFavoriteRepository) {
   };
 }
 
-function fixture() {
+function fixture(targetRegionName = '강남구') {
   return createRegionalGuideFavorite(
     {
       sido: { id: 'sido:11', level: 'sido', name: '서울특별시' },
@@ -155,7 +200,7 @@ function fixture() {
         parentId: 'sido:11',
       },
     },
-    { targetRegionName: '강남구', schedules: [] },
+    { targetRegionName, schedules: [] },
     '2026-09-24T00:00:00.000Z',
   );
 }

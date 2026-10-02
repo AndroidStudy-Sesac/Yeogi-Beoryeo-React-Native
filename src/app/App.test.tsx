@@ -87,7 +87,9 @@ describe('<App />', () => {
     );
     await fireEvent.press(
       await waitFor(() =>
-        getByLabelText('서울특별시 > 강남구 > 역삼1동 지역 가이드 보기'),
+        getByLabelText(
+          '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
+        ),
       ),
     );
     await waitFor(() =>
@@ -100,7 +102,9 @@ describe('<App />', () => {
 
     await waitFor(() =>
       expect(
-        getByLabelText('서울특별시 > 강남구 > 역삼1동 지역 가이드 보기'),
+        getByLabelText(
+          '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
+        ),
       ).toBeTruthy(),
     );
     expect(
