@@ -2,13 +2,26 @@ import { NavigationContainer, type InitialState, type NavigationState } from '@r
 import type { PropsWithChildren } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-export function AppProviders({ children, initialState, onStateChange }: PropsWithChildren<{
+import { RegionalGuideFavoritesProvider } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
+
+export function AppProviders({
+  children,
+  initialState,
+  onStateChange,
+}: PropsWithChildren<{
   initialState?: InitialState;
   onStateChange?: (state: NavigationState | undefined) => void;
 }>) {
   return (
     <SafeAreaProvider>
-      <NavigationContainer initialState={initialState} onStateChange={onStateChange}>{children}</NavigationContainer>
+      <RegionalGuideFavoritesProvider>
+        <NavigationContainer
+          initialState={initialState}
+          onStateChange={onStateChange}
+        >
+          {children}
+        </NavigationContainer>
+      </RegionalGuideFavoritesProvider>
     </SafeAreaProvider>
   );
 }
