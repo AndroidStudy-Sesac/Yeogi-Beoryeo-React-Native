@@ -160,17 +160,26 @@ iOS build job은 macOS 26과 Xcode 26.6 환경에서 다음 항목을 확인합�
 
 공통 뼈대 CI는 기능별 API key 없이 통과해야 합니다. 기능 구현으로 key가 필요해질 때는 해당 feature의 test와 build 범위를 기준으로 필요한 값만 등록합니다.
 
-## 현재 확인된 upstream 경고
+## 의존성 보안 경고
 
-현재 lockfile의 `npm audit`은 Expo CLI와 React Navigation의 transitive dependency에서 moderate 항목 16개를 보고합니다. 자동 수정안은 Expo SDK 46과 React Navigation 3 또는 5로 내리는 방식이므로 적용하지 않습니다. 현재 SDK 57 조합과 맞지 않고, 공통 뼈대의 native build 계약도 깨집니다.
+2026년 10월 2일 기준으로 `brace-expansion`을 `1.1.21`과 `5.0.12`로 갱신했습니다. `@react-navigation/core`를 기존 허용 범위의 `7.23.0`으로 갱신하여 `query-string`과 취약한 `decode-uri-component` 의존성을 제거했습니다.
 
-* `query-string`이 사용하는 `decode-uri-component`에는 잘못된 percent encoding 입력으로 인한 denial of service advisory가 있습니다.
-* Expo의 Xcode 프로젝트 도구가 사용하는 `uuid`에는 특정 API 사용 방식의 buffer bounds advisory가 있습니다.
-* 현재 직접 dependency는 Expo SDK 57 권장 버전과 React Navigation 최신 설치 결과입니다.
+현재 `npm audit`은 high 4개와 moderate 8개를 보고합니다. 아래 두 보안 공지가 상위 의존성을 포함한 12개 패키지에 반영된 결과입니다.
 
-새 호환 버전이 배포되면 `expo install --check`, test, Android/iOS native build를 함께 통과시킨 뒤 lockfile을 갱신합니다. `npm audit fix --force`로 major version을 자동 변경하지 않습니다.
+| 항목 | 확인한 사용 경로 | 처리 기준 |
+| --- | --- | --- |
+| [node-forge 서명 검증 취약점](https://github.com/advisories/GHSA-86w9-cpqp-85rv) | Expo CLI와 코드 서명 도구가 사용합니다. 앱 소스에서 직접 사용하지 않으며 `expo-updates`와 업데이트 서명 설정도 추가하지 않았습니다. | 현재 최신 `1.4.0`에도 해당하며 공식 수정 버전이 없습니다. 외부 인증서와 서명 검증을 사용하는 기능을 추가하기 전에 영향 범위를 다시 확인합니다. |
+| [uuid 출력 버퍼 경계 취약점](https://github.com/advisories/GHSA-w5hq-g745-h8pq) | Xcode 프로젝트 생성 도구 `xcode@3.0.1`이 `uuid@7.0.3`의 인자 없는 `v4()`를 호출합니다. 보안 공지는 출력 버퍼를 받는 `v3()`, `v5()`, `v6()`에 해당합니다. | 확인한 호출은 취약 API를 사용하지 않습니다. 수정된 `11.1.1`은 상위 도구의 `^7.0.3` 범위 밖이므로 상위 도구의 호환 업데이트를 확인합니다. |
 
-Android native build에서는 Expo SDK 57, React Native, `react-native-screens`, `react-native-safe-area-context` 내부의 deprecated API 경고가 확인됩니다. 현재 작성한 TypeScript와 app config의 warning은 아닙니다. 생성된 native 파일이나 `node_modules`를 직접 수정하지 않고 upstream 호환 버전에서 해결합니다.
+보안 패치가 배포되면 의존 경로를 다시 확인하고 Expo 호환성, 타입 검사, lint, 테스트와 안드로이드/iOS 빌드를 통과한 뒤 lockfile을 갱신합니다. `npm audit fix --force`의 SDK 하향 변경이나 검증되지 않은 major override는 적용하지 않습니다.
+
+## deprecated 경고
+
+안드로이드 빌드의 deprecated API 경고는 Expo, React Native, `react-native-screens`, `react-native-safe-area-context` 등 native 의존성 내부와 생성된 Gradle 설정에서 발생합니다. Expo SDK 57의 권장 조합은 React Native `0.86.3`, screens `~4.26.0`, safe-area-context `~5.7.0`이며, 현재 lockfile은 해당 범위를 충족합니다.
+
+호환 범위의 수정 버전을 우선 적용합니다. 더 높은 minor 버전이 있어도 Expo 권장 범위를 벗어나면 SDK 업데이트 작업에서 함께 검증합니다. 생성 파일과 `node_modules`를 직접 수정하거나 경고를 숨기는 설정으로 처리하지 않습니다.
+
+`npm ci`에서도 Jest 계열의 `glob`, `inflight`, DOM 호환 패키지와 `uuid`, ESLint의 지원 종료 경고가 남습니다. 현재 `jest-expo@57.0.5`는 Jest 29 계열을 사용하며, 최신 `eslint-plugin-react@7.37.5`와 `eslint-plugin-import@2.32.0`은 ESLint 10을 허용하지 않습니다. 상위 도구의 지원 범위를 함께 갱신하며, 직접 작성하거나 수정한 코드의 타입 검사와 lint에는 경고를 남기지 않습니다.
 
 ## 브랜치 기준
 

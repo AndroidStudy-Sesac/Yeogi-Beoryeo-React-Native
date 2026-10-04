@@ -21,6 +21,7 @@ import {
 import { loadItemCatalog } from '../../features/item-search/data/itemCatalog';
 import { itemSearchScreens } from './itemSearchScreens';
 import { ItemPreferencesProvider } from '../../features/item-search/presentation/ItemPreferencesContext';
+import { RegionalGuideFavoritesProvider } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
 import {
   AppNavigator,
   type AppScreenRegistry,
@@ -169,9 +170,13 @@ async function renderNavigator(registry: AppScreenRegistry = screens) {
   const navigation = createNavigationContainerRef<AppTabParamList>();
   const result = await render(
     <SafeAreaProvider>
-      <ItemPreferencesProvider><NavigationContainer ref={navigation}>
-        <AppNavigator screens={registry} />
-      </NavigationContainer></ItemPreferencesProvider>
+      <ItemPreferencesProvider>
+        <RegionalGuideFavoritesProvider>
+          <NavigationContainer ref={navigation}>
+            <AppNavigator screens={registry} />
+          </NavigationContainer>
+        </RegionalGuideFavoritesProvider>
+      </ItemPreferencesProvider>
     </SafeAreaProvider>,
   );
   return { ...result, navigation };
