@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RegionalGuideFavoritesProvider } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
+import { HomeRegionalGuideRepresentativeProvider } from '../../features/regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
 
 export function AppProviders({
   children,
@@ -15,12 +16,14 @@ export function AppProviders({
   return (
     <SafeAreaProvider>
       <RegionalGuideFavoritesProvider>
-        <NavigationContainer
-          initialState={initialState}
-          onStateChange={onStateChange}
-        >
-          {children}
-        </NavigationContainer>
+        <HomeRegionalGuideRepresentativeProvider>
+          <NavigationContainer
+            initialState={initialState}
+            onStateChange={onStateChange}
+          >
+            {children}
+          </NavigationContainer>
+        </HomeRegionalGuideRepresentativeProvider>
       </RegionalGuideFavoritesProvider>
     </SafeAreaProvider>
   );

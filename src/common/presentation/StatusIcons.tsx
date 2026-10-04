@@ -29,3 +29,18 @@ export function ErrorOutlineIcon({
     </Svg>
   );
 }
+
+export function HomePinIcon({
+  color,
+  filled = false,
+  size = 24,
+}: Readonly<{ color: string; filled?: boolean; size?: number }>) {
+  const path = filled
+    ? 'M16 12V4h1V2H7v2h1v8l-2 2v2h5v6h2v-6h5v-2l-2-2Z'
+    : 'M16 12V4h1V2H7v2h1v8l-2 2v2h5v6h2v-6h5v-2l-2-2Zm-7.17 2L10 12.83V4h4v8.83L15.17 14H8.83Z';
+  return (
+    <Svg accessible={false} height={size} viewBox="0 0 24 24" width={size}>
+      <Path d={path} fill={color} />
+    </Svg>
+  );
+}

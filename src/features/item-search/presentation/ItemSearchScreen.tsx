@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   BackHandler, FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput,
   useWindowDimensions, View, type NativeScrollEvent, type NativeSyntheticEvent,
@@ -12,13 +12,15 @@ import { itemFonts, useItemColors } from './itemTheme';
 import { useItemSearch, type ItemSearchSnapshot, type SearchItems } from './useItemSearch';
 
 export function ItemSearchScreen({
-  initialQuery, savedState, onSnapshot, onGuideSelected, focused = true, searchItems,
+  initialQuery, savedState, onSnapshot, onGuideSelected, focused = true,
+  homeSummaryCard, searchItems,
 }: {
   initialQuery?: string;
   savedState?: ItemSearchSnapshot;
   onSnapshot?: (snapshot: ItemSearchSnapshot) => void;
   onGuideSelected: (id: string) => void;
   focused?: boolean;
+  homeSummaryCard?: ReactNode;
   searchItems?: SearchItems;
 }) {
   const search = useItemSearch({ initialQuery, savedState, onSnapshot, searchItems });
@@ -87,6 +89,7 @@ export function ItemSearchScreen({
     <View style={{ paddingHorizontal: horizontalPadding,
       paddingTop: 8 + (hasSearched && !hasResults ? screenSpace : 0),
       gap: hasResults ? 8 : screenSpace, paddingBottom: hasSummary ? 16 : screenSpace }}>
+      {!hasSearched ? homeSummaryCard : null}
       <View style={[styles.searchField, { backgroundColor: colors.background,
         borderColor: inputFocused ? colors.primary : colors.fieldOutline, borderWidth,
         paddingLeft: 16 - borderWidth }]}>

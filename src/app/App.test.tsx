@@ -5,6 +5,11 @@ import {
   REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION,
   REGIONAL_GUIDE_FAVORITES_STORAGE_KEY,
 } from '../features/regional-guide/data/regionalGuideFavoriteRepository';
+import {
+  HOME_REGIONAL_GUIDE_REPRESENTATIVE_SCHEMA_VERSION,
+  HOME_REGIONAL_GUIDE_REPRESENTATIVE_STORAGE_KEY,
+} from '../features/regional-guide/data/homeRegionalGuideRepresentativeRepository';
+import { sharedRegionalGuideApiClient } from '../features/regional-guide/data/regionalGuideApi';
 import { createRegionalGuideFavorite } from '../features/regional-guide/domain/regionalGuideFavorite';
 import App from './App';
 
@@ -167,5 +172,85 @@ describe('<App />', () => {
       getByRole('button', { name: '저장 탭' }).props.accessibilityState,
     ).toMatchObject({ selected: true });
     await act(async () => jest.runOnlyPendingTimers());
+  });
+
+  it('홈 요약에서 상세를 열고 복귀하면 기존 정상 요약을 유지합니다', async () => {
+    const selection = {
+      sido: { id: 'sido:11', level: 'sido' as const, name: '서울특별시' },
+      sigungu: {
+        id: 'sigungu:11680',
+        level: 'sigungu' as const,
+        name: '강남구',
+        parentId: 'sido:11',
+      },
+      eupmyeondong: {
+        id: 'eupmyeondong:1168064000',
+        level: 'eupmyeondong' as const,
+        name: '역삼1동',
+        parentId: 'sigungu:11680',
+      },
+    };
+    const guide = {
+      sidoName: '서울특별시',
+      sigunguName: '강남구',
+      targetRegionName: '역삼1동',
+      managementZoneName: '2권역',
+      schedules: [
+        {
+          wasteType: 'general' as const,
+          disposalDays: '월, 수, 금',
+          disposalStartTime: '18:00',
+        },
+      ],
+    };
+    const favorite = createRegionalGuideFavorite(
+      selection,
+      guide,
+      '2026-09-24T00:00:00.000Z',
+    );
+    await AsyncStorage.multiSet([
+      [
+        REGIONAL_GUIDE_FAVORITES_STORAGE_KEY,
+        JSON.stringify({
+          version: REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION,
+          favorites: [favorite],
+        }),
+      ],
+      [
+        HOME_REGIONAL_GUIDE_REPRESENTATIVE_STORAGE_KEY,
+        JSON.stringify({
+          version: HOME_REGIONAL_GUIDE_REPRESENTATIVE_SCHEMA_VERSION,
+          targetId: favorite.targetId,
+        }),
+      ],
+    ]);
+    const fetchSpy = jest
+      .spyOn(sharedRegionalGuideApiClient, 'fetchRegionalDisposalGuides')
+      .mockResolvedValue({ status: 'success', guides: [guide] });
+    const { getByLabelText } = await render(<App />);
+
+    await fireEvent.press(
+      await waitFor(() =>
+        getByLabelText(
+          '서울특별시 > 강남구 > 역삼1동 지역 가이드 상세 보기',
+        ),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        getByLabelText('선택 지역: 서울특별시 > 강남구 > 역삼1동'),
+      ).toBeTruthy(),
+    );
+    await fireEvent.press(getByLabelText('지역 변경'));
+
+    await waitFor(() =>
+      expect(
+        getByLabelText(
+          '서울특별시 > 강남구 > 역삼1동 지역 가이드 상세 보기',
+        ),
+      ).toBeTruthy(),
+    );
+    expect(getByLabelText('월, 수, 금')).toBeTruthy();
+    fetchSpy.mockRestore();
   });
 });
