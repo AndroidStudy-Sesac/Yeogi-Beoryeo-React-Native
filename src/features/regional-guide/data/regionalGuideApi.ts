@@ -45,7 +45,8 @@ export type RegionalGuideApiClient = Readonly<{
 
 export function getRegionalGuideApiConfig(): RegionalGuideApiConfig {
   return {
-    serviceKey: normalizeText(
+    serviceKey: resolveRegionalGuideServiceKey(
+      process.env.EXPO_PUBLIC_GETSPOT_SERVICE_KEY,
       process.env.EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY,
     ),
   };
@@ -55,7 +56,8 @@ export function createRegionalGuideApiConfig(
   environment: Record<string, string | undefined>,
 ): RegionalGuideApiConfig {
   return {
-    serviceKey: normalizeText(
+    serviceKey: resolveRegionalGuideServiceKey(
+      environment.EXPO_PUBLIC_GETSPOT_SERVICE_KEY,
       environment.EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY,
     ),
   };
@@ -618,6 +620,13 @@ function normalizeText(value: unknown): string | undefined {
   return normalized && normalized.toLowerCase() !== 'null'
     ? normalized
     : undefined;
+}
+
+function resolveRegionalGuideServiceKey(
+  sharedServiceKey: unknown,
+  legacyServiceKey: unknown,
+): string | undefined {
+  return normalizeText(sharedServiceKey) ?? normalizeText(legacyServiceKey);
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

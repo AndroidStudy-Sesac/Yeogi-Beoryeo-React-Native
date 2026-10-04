@@ -1,6 +1,11 @@
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION,
+  REGIONAL_GUIDE_FAVORITES_STORAGE_KEY,
+} from '../features/regional-guide/data/regionalGuideFavoriteRepository';
+import { createRegionalGuideFavorite } from '../features/regional-guide/domain/regionalGuideFavorite';
 import App from './App';
 
 jest.useFakeTimers();
@@ -11,6 +16,10 @@ afterEach(async () => {
 });
 
 describe('<App />', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
   it('Android 복원 세션에서 제출 결과와 다른 편집 입력을 함께 복원합니다', async () => {
     jest.mocked(AsyncStorage.getItem).mockResolvedValueOnce(JSON.stringify({
       sessionId: 'restored-task', search: { query: '종이', submittedQuery: '건전지',
@@ -93,5 +102,70 @@ describe('<App />', () => {
 
     await waitFor(() => expect(getByText('지역별 배출 가이드')).toBeTruthy());
     expect(getByText('서울특별시 > 강남구')).toBeTruthy();
+  });
+
+  it('저장 목록에서 연 지역 상세의 뒤로가기는 저장 목록으로 복귀합니다', async () => {
+    const favorite = createRegionalGuideFavorite(
+      {
+        sido: { id: 'sido:11', level: 'sido', name: '서울특별시' },
+        sigungu: {
+          id: 'sigungu:11680',
+          level: 'sigungu',
+          name: '강남구',
+          parentId: 'sido:11',
+        },
+        eupmyeondong: {
+          id: 'eupmyeondong:1168064000',
+          level: 'eupmyeondong',
+          name: '역삼1동',
+          parentId: 'sigungu:11680',
+        },
+      },
+      {
+        targetRegionName: '역삼1동',
+        managementZoneName: '2권역',
+        schedules: [],
+      },
+      '2026-09-24T00:00:00.000Z',
+    );
+    await AsyncStorage.setItem(
+      REGIONAL_GUIDE_FAVORITES_STORAGE_KEY,
+      JSON.stringify({
+        version: REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION,
+        favorites: [favorite],
+      }),
+    );
+    const { getByLabelText, getByRole } = await render(<App />);
+
+    await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+    await fireEvent.press(
+      await waitFor(() => getByLabelText('지역 즐겨찾기 카테고리')),
+    );
+    await fireEvent.press(
+      await waitFor(() =>
+        getByLabelText(
+          '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
+        ),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        getByLabelText('선택 지역: 서울특별시 > 강남구 > 역삼1동'),
+      ).toBeTruthy(),
+    );
+
+    await fireEvent.press(getByLabelText('지역 변경'));
+
+    await waitFor(() =>
+      expect(
+        getByLabelText(
+          '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
+        ),
+      ).toBeTruthy(),
+    );
+    expect(
+      getByRole('button', { name: '저장 탭' }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
+    await act(async () => jest.runOnlyPendingTimers());
   });
 });
