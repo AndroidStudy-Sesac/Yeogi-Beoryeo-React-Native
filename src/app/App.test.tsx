@@ -1,6 +1,12 @@
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION,
+  REGIONAL_GUIDE_FAVORITES_STORAGE_KEY,
+} from '../features/regional-guide/data/regionalGuideFavoriteRepository';
+import { createRegionalGuideFavorite } from '../features/regional-guide/domain/regionalGuideFavorite';
+import { ITEM_PREFERENCES_KEY } from '../features/item-search/data/itemPreferences';
 import App from './App';
 
 jest.useFakeTimers();
@@ -11,6 +17,7 @@ afterEach(async () => {
 });
 
 describe('<App />', () => {
+  beforeEach(async () => { await AsyncStorage.clear(); });
   it('홈의 대표 가이드를 저장하고 저장 탭에서 상세를 열었다 돌아옵니다', async () => {
     await AsyncStorage.clear();
     const view = await render(<App />);
@@ -34,7 +41,7 @@ describe('<App />', () => {
   });
 
   it('Android 복원 세션에서 제출 결과와 다른 편집 입력을 함께 복원합니다', async () => {
-    jest.mocked(AsyncStorage.getItem).mockResolvedValueOnce(JSON.stringify({
+    await AsyncStorage.setItem('item-search-session-v1', JSON.stringify({
       sessionId: 'restored-task', search: { query: '종이', submittedQuery: '건전지',
         handledInitialQuery: null, resultVersion: 1, scrollOffset: 0 },
     }));
@@ -115,5 +122,95 @@ describe('<App />', () => {
 
     await waitFor(() => expect(getByText('지역별 배출 가이드')).toBeTruthy());
     expect(getByText('서울특별시 > 강남구')).toBeTruthy();
+  });
+  it('저장 목록에서 연 지역 상세의 뒤로가기는 저장 목록으로 복귀합니다', async () => {
+    const favorite = createRegionalGuideFavorite(
+      {
+        sido: { id: 'sido:11', level: 'sido', name: '서울특별시' },
+        sigungu: {
+          id: 'sigungu:11680',
+          level: 'sigungu',
+          name: '강남구',
+          parentId: 'sido:11',
+        },
+        eupmyeondong: {
+          id: 'eupmyeondong:1168064000',
+          level: 'eupmyeondong',
+          name: '역삼1동',
+          parentId: 'sigungu:11680',
+        },
+      },
+      {
+        targetRegionName: '역삼1동',
+        managementZoneName: '2권역',
+        schedules: [],
+      },
+      '2026-09-24T00:00:00.000Z',
+    );
+    await AsyncStorage.setItem(
+      REGIONAL_GUIDE_FAVORITES_STORAGE_KEY,
+      JSON.stringify({
+        version: REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION,
+        favorites: [favorite],
+      }),
+    );
+    await AsyncStorage.setItem(ITEM_PREFERENCES_KEY, JSON.stringify({
+      version: 1, categories: [], favorites: [{ id: 'item-guide-0001', savedAt: 1 }],
+    }));
+    const { getByLabelText, getByRole } = await render(<App />);
+
+    await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+    await waitFor(() => expect(getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+    await fireEvent.press(
+      await waitFor(() => getByLabelText('지역 즐겨찾기 카테고리')),
+    );
+    await fireEvent.press(
+      await waitFor(() =>
+        getByLabelText('서울특별시 > 강남구 > 역삼1동, 역삼1동, 2권역 지역 가이드 보기'),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        getByLabelText('선택 지역: 서울특별시 > 강남구 > 역삼1동'),
+      ).toBeTruthy(),
+    );
+
+    await fireEvent.press(getByLabelText('지역 변경'));
+
+    await waitFor(() =>
+      expect(
+        getByLabelText('서울특별시 > 강남구 > 역삼1동, 역삼1동, 2권역 지역 가이드 보기'),
+      ).toBeTruthy(),
+    );
+    expect(
+      getByRole('button', { name: '저장 탭' }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
+    await fireEvent.press(getByLabelText('품목 즐겨찾기 카테고리'));
+    await fireEvent.press(getByRole('button', { name: '종이 즐겨찾기 해제' }));
+    await waitFor(() => expect(getByLabelText('아직 즐겨찾기한 품목이 없어요')).toBeTruthy());
+    const regionalSaved = await AsyncStorage.getItem(REGIONAL_GUIDE_FAVORITES_STORAGE_KEY);
+    expect(regionalSaved && JSON.parse(regionalSaved).favorites).toEqual([favorite]);
+    await act(async () => jest.runOnlyPendingTimers());
+  });
+
+  it('지역 저장 데이터 복원 실패가 품목 저장 목록을 막지 않습니다', async () => {
+    await AsyncStorage.setItem(ITEM_PREFERENCES_KEY, JSON.stringify({
+      version: 1, categories: [], favorites: [{ id: 'item-guide-0001', savedAt: 1 }],
+    }));
+    const read = jest.mocked(AsyncStorage.getItem).getMockImplementation()!;
+    jest.mocked(AsyncStorage.getItem).mockImplementation(key =>
+      key === REGIONAL_GUIDE_FAVORITES_STORAGE_KEY ? Promise.reject(new Error('read failure')) : read(key));
+    try {
+      const view = await render(<App />);
+      await fireEvent.press(view.getByRole('button', { name: '저장 탭' }));
+      await waitFor(() => expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+      await fireEvent.press(view.getByLabelText('지역 즐겨찾기 카테고리'));
+      expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
+      await fireEvent.press(view.getByLabelText('품목 즐겨찾기 카테고리'));
+      expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy();
+      await view.unmount();
+    } finally {
+      jest.mocked(AsyncStorage.getItem).mockImplementation(read);
+    }
   });
 });

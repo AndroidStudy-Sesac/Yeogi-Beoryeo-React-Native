@@ -42,12 +42,30 @@ describe('지역 가이드 API', () => {
     });
   });
 
-  it('Expo 공개 환경 변수에서 지역 가이드 API key를 읽습니다', () => {
+  it('팀 공통 Expo 공개 환경 변수에서 지역 가이드 API key를 읽습니다', () => {
     expect(
       createRegionalGuideApiConfig({
-        EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: '  service-key  ',
+        EXPO_PUBLIC_GETSPOT_SERVICE_KEY: '  shared-service-key  ',
       }),
-    ).toEqual({ serviceKey: 'service-key' });
+    ).toEqual({ serviceKey: 'shared-service-key' });
+  });
+
+  it('기존 지역 가이드 환경 변수는 하위 호환용으로 사용합니다', () => {
+    expect(
+      createRegionalGuideApiConfig({
+        EXPO_PUBLIC_GETSPOT_SERVICE_KEY: '  ',
+        EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: '  legacy-service-key  ',
+      }),
+    ).toEqual({ serviceKey: 'legacy-service-key' });
+  });
+
+  it('공통 key와 기존 key가 모두 있으면 공통 key를 우선합니다', () => {
+    expect(
+      createRegionalGuideApiConfig({
+        EXPO_PUBLIC_GETSPOT_SERVICE_KEY: 'shared-service-key',
+        EXPO_PUBLIC_HOUSEHOLD_WASTE_SERVICE_KEY: 'legacy-service-key',
+      }),
+    ).toEqual({ serviceKey: 'shared-service-key' });
   });
 
   it('세 폐기물 유형의 요일·시간·방법·장소를 공통 모델로 변환합니다', () => {

@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MessageSnackbar } from '../../../common/presentation/MessageSnackbar';
+import { FavoriteIcon } from '../../../common/presentation/StatusIcons';
 import type { RegionalGuideApiClient } from '../data/regionalGuideApi';
 import { getRegionCatalog } from '../data/regionRepository';
 import { formatRegionSelection, type RegionSelection } from '../domain/Region';
@@ -22,6 +24,10 @@ import type {
   RegionalWasteSchedule,
   RegionalWasteType,
 } from '../domain/RegionalDisposalGuide';
+import {
+  createRegionalGuideFavorite,
+  type RegionalGuideFavorite,
+} from '../domain/regionalGuideFavorite';
 import { createRegionalGuideQuery } from '../domain/regionalGuideQuery';
 import type { RegionalGuideCandidateReason } from '../domain/selectRegionalGuideCandidate';
 import {
@@ -33,22 +39,29 @@ import {
   useRegionalGuideDetail,
   type RegionalGuideDetailState,
 } from './useRegionalGuideDetail';
+import { useOptionalRegionalGuideFavorites } from './RegionalGuideFavoritesContext';
 
 const REGIONAL_GUIDE_PUBLIC_NOTICE_URL =
   'https://wasteguide.or.kr/front/support/bannerCollection.do';
+const FAVORITE_UPDATE_FAILED_MESSAGE =
+  '즐겨찾기를 변경하지 못했어요. 다시 시도해 주세요.';
 
 type RegionalGuideDetailScreenProps = Readonly<{
   selection: RegionSelection;
   apiClient?: RegionalGuideApiClient;
   onBack?: () => void;
+  onReselectRegion?: () => void;
   onCandidateBackHandlerChange?: (handler?: () => boolean) => void;
   onOpenPublicNotice?: () => void;
+  initialFavoriteTargetId?: string;
 }>;
 
 export function RegionalGuideDetailScreen({
   selection,
   apiClient,
+  initialFavoriteTargetId,
   onBack,
+  onReselectRegion,
   onCandidateBackHandlerChange,
   onOpenPublicNotice,
 }: RegionalGuideDetailScreenProps) {
@@ -59,6 +72,16 @@ export function RegionalGuideDetailScreen({
       : undefined;
     return createRegionalGuideQuery(selection, aliases);
   }, [selection]);
+  const restoreTarget = useMemo(
+    () =>
+      initialFavoriteTargetId
+        ? { targetId: initialFavoriteTargetId, selection }
+        : undefined,
+    [initialFavoriteTargetId, selection],
+  );
+  const favorites = useOptionalRegionalGuideFavorites();
+  const favoriteMutationError = favorites?.mutationError;
+  const clearFavoriteMutationError = favorites?.clearMutationError;
   const {
     state,
     lookup,
@@ -66,7 +89,7 @@ export function RegionalGuideDetailScreen({
     selectCandidate,
     restoreCandidates,
     canRestoreCandidates,
-  } = useRegionalGuideDetail(apiClient);
+  } = useRegionalGuideDetail(apiClient, restoreTarget);
   const { height, width } = useWindowDimensions();
   const isCompactLandscape = width > height && height <= 480;
   const regionPath = formatRegionSelection(selection);
@@ -79,6 +102,12 @@ export function RegionalGuideDetailScreen({
   useEffect(() => {
     if (query) void lookup(query);
   }, [lookup, query]);
+
+  useEffect(() => {
+    if (!favoriteMutationError || !clearFavoriteMutationError) return undefined;
+    const timeoutId = setTimeout(clearFavoriteMutationError, 4_000);
+    return () => clearTimeout(timeoutId);
+  }, [clearFavoriteMutationError, favoriteMutationError]);
 
   useEffect(() => {
     const handler = canRestoreCandidates ? restoreCandidates : undefined;
@@ -162,30 +191,42 @@ export function RegionalGuideDetailScreen({
 
         <DetailContent
           canLookup={Boolean(query)}
+          favoriteController={favorites}
+          isFavoriteRestore={Boolean(initialFavoriteTargetId)}
           onChangeRegion={onBack}
           onOpenPublicNotice={openPublicNotice}
+          onReselectRegion={onReselectRegion ?? onBack}
           onRetry={() => void retry()}
           onSelectCandidate={selectCandidate}
           selection={selection}
           state={state}
         />
       </ScrollView>
+      {favoriteMutationError ? (
+        <MessageSnackbar message={FAVORITE_UPDATE_FAILED_MESSAGE} />
+      ) : null}
     </SafeAreaView>
   );
 }
 
 function DetailContent({
   canLookup,
+  favoriteController,
+  isFavoriteRestore,
   onChangeRegion,
   onOpenPublicNotice,
+  onReselectRegion,
   onRetry,
   onSelectCandidate,
   selection,
   state,
 }: Readonly<{
   canLookup: boolean;
+  favoriteController: FavoriteController | null;
+  isFavoriteRestore: boolean;
   onChangeRegion?: () => void;
   onOpenPublicNotice(): void;
+  onReselectRegion?: () => void;
   onRetry(): void;
   onSelectCandidate(guide: RegionalDisposalGuide): void;
   selection: RegionSelection;
@@ -237,6 +278,23 @@ function DetailContent({
       </View>
     );
   }
+  if (state.status === 'restore-not-found') {
+    return (
+      <View style={styles.detailContent}>
+        <MessageCard
+          actionLabel="다시 시도"
+          description="저장 당시와 같은 안내 대상을 최신 지역 가이드에서 찾지 못했어요. 저장 항목은 그대로 유지됩니다."
+          label="저장한 지역 가이드 상세 복원 실패"
+          onAction={onRetry}
+          title="저장한 가이드를 복원하지 못했어요."
+          tone="error"
+        />
+        {onReselectRegion ? (
+          <TextAction label="지역 다시 선택하기" onPress={onReselectRegion} />
+        ) : null}
+      </View>
+    );
+  }
   if (state.status === 'not-provided') {
     return (
       <View style={styles.detailContent}>
@@ -258,12 +316,23 @@ function DetailContent({
       <View style={styles.detailContent}>
         <MessageCard
           actionLabel="다시 시도"
-          description={failureDescription(state.reason)}
-          label={`배출 안내 조회 실패: ${failureLabel(state.reason)}`}
+          description={
+            isFavoriteRestore
+              ? `${failureDescription(state.reason)} 저장 항목은 그대로 유지됩니다.`
+              : failureDescription(state.reason)
+          }
+          label={
+            isFavoriteRestore
+              ? `저장한 지역 가이드 상세 복원 실패: ${failureLabel(state.reason)}`
+              : `배출 안내 조회 실패: ${failureLabel(state.reason)}`
+          }
           onAction={onRetry}
           title="오류가 발생했습니다"
           tone="error"
         />
+        {isFavoriteRestore && onReselectRegion ? (
+          <TextAction label="지역 다시 선택하기" onPress={onReselectRegion} />
+        ) : null}
       </View>
     );
   }
@@ -318,6 +387,7 @@ function DetailContent({
       ) : null}
       {guide ? (
         <GuideContent
+          favoriteController={favoriteController}
           guide={guide}
           onOpenPublicNotice={onOpenPublicNotice}
           selection={selection}
@@ -333,11 +403,67 @@ function DetailContent({
   );
 }
 
+type FavoriteController = Readonly<{
+  loadState: 'loading' | 'ready' | 'error';
+  mutationError?: string;
+  clearMutationError(): void;
+  isFavorite(targetId: string): boolean;
+  isPending(targetId: string): boolean;
+  setFavorite(
+    favorite: RegionalGuideFavorite,
+    shouldSave: boolean,
+  ): Promise<void>;
+}>;
+
+function FavoriteToggle({
+  controller,
+  displayRegionName,
+  favorite,
+}: Readonly<{
+  controller: FavoriteController;
+  displayRegionName: string;
+  favorite: RegionalGuideFavorite;
+}>) {
+  const isFavorite = controller.isFavorite(favorite.targetId);
+  const isPending = controller.isPending(favorite.targetId);
+  const isUnavailable = controller.loadState !== 'ready';
+  const isDisabled = isPending || isUnavailable;
+
+  return (
+    <Pressable
+      accessibilityLabel={`${displayRegionName} 즐겨찾기`}
+      accessibilityRole="button"
+      accessibilityState={{
+        busy: isPending,
+        checked: isFavorite,
+        disabled: isDisabled,
+      }}
+      accessibilityValue={{
+        text: isFavorite ? '즐겨찾기됨' : '즐겨찾기 안 됨',
+      }}
+      disabled={isDisabled}
+      onPress={() => {
+        controller.clearMutationError();
+        void controller.setFavorite(favorite, !isFavorite).catch(() => undefined);
+      }}
+      style={({ pressed }) => [
+        styles.favoriteToggle,
+        isDisabled && styles.favoriteToggleDisabled,
+        pressed && styles.pressed,
+      ]}
+    >
+      <FavoriteIcon color={COLORS.tertiary} filled={isFavorite} size={22} />
+    </Pressable>
+  );
+}
+
 function GuideContent({
+  favoriteController,
   guide,
   onOpenPublicNotice,
   selection,
 }: Readonly<{
+  favoriteController: FavoriteController | null;
   guide: RegionalDisposalGuide;
   onOpenPublicNotice(): void;
   selection: RegionSelection;
@@ -346,7 +472,11 @@ function GuideContent({
 
   return (
     <>
-      <SummaryCard guide={guide} selection={selection} />
+      <SummaryCard
+        favoriteController={favoriteController}
+        guide={guide}
+        selection={selection}
+      />
       <PublicNoticeCta onPress={onOpenPublicNotice} />
       <Text style={styles.scheduleSectionTitle}>배출 요일 및 시간</Text>
       {scheduleGroups.map(group => (
@@ -357,9 +487,11 @@ function GuideContent({
 }
 
 function SummaryCard({
+  favoriteController,
   guide,
   selection,
 }: Readonly<{
+  favoriteController: FavoriteController | null;
   guide: RegionalDisposalGuide;
   selection: RegionSelection;
 }>) {
@@ -379,9 +511,18 @@ function SummaryCard({
       accessibilityLabel={`배출 안내: ${displayRegionName || '지역 정보'}`}
       style={styles.summaryCard}
     >
-      <Text style={styles.summaryTitle}>
-        {displayRegionName || '지역 정보'}
-      </Text>
+      <View style={styles.summaryHeader}>
+        <Text style={styles.summaryTitle}>
+          {displayRegionName || '지역 정보'}
+        </Text>
+        {favoriteController ? (
+          <FavoriteToggle
+            controller={favoriteController}
+            displayRegionName={displayRegionName || '지역 정보'}
+            favorite={createRegionalGuideFavorite(selection, guide)}
+          />
+        ) : null}
+      </View>
       <InfoRow label="관리구역" value={displayValue(guide.managementZoneName)} />
       <InfoRow label="대상지역" value={displayValue(guide.targetRegionName)} />
       <InfoRow label="배출장소" value={displayValue(guide.disposalPlaceType)} />
@@ -817,6 +958,7 @@ const COLORS = {
   primary: '#2E7D32',
   primaryContainer: '#C8E6C9',
   surface: '#FFFFFF',
+  tertiary: '#F9A825',
   tertiaryContainer: '#FFECB3',
   onTertiaryContainer: '#4E3400',
 } as const;
@@ -949,7 +1091,25 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 24,
   },
-  summaryTitle: { color: COLORS.onSurface, fontSize: 22, fontWeight: '700' },
+  summaryHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  favoriteToggle: {
+    alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  favoriteToggleDisabled: { opacity: 0.5 },
+  summaryTitle: {
+    color: COLORS.onSurface,
+    flex: 1,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
   infoRow: { gap: 2 },
   infoLabel: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
   infoValue: {

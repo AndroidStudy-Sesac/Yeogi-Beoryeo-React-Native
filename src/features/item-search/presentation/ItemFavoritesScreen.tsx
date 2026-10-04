@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +8,8 @@ import { getItemDisplay } from './itemDisplay';
 import { useItemPreferences } from './ItemPreferencesContext';
 import { itemFonts, useItemColors } from './itemTheme';
 
-export function ItemFavoritesScreen({ onGuideSelected, onSearch }: {
+export function ItemFavoritesScreen({ onGuideSelected, onSearch, header }: {
+  header?: ReactElement;
   onGuideSelected: (id: string) => void; onSearch?: () => void;
 }) {
   const { data, status, store, pending } = useItemPreferences();
@@ -20,7 +21,7 @@ export function ItemFavoritesScreen({ onGuideSelected, onSearch }: {
   });
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
     <FlatList data={tab === '품목' && status === 'ready' ? guides : []} keyExtractor={guide => guide.id}
-      contentContainerStyle={styles.list} ListHeaderComponent={<View style={{ gap: 16 }}>
+      contentContainerStyle={styles.list} ListHeaderComponent={header ?? <View style={{ gap: 16 }}>
       <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>즐겨찾기</Text>
       <View style={[styles.tabs, { borderColor: colors.outline }]}>
       {['품목', '장소', '지역'].map(label => <Pressable key={label} accessibilityRole="tab"

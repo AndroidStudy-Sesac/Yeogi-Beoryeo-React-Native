@@ -7,9 +7,12 @@ import {
 } from '@testing-library/react-native';
 
 import type { RegionalGuideApiClient } from '../data/regionalGuideApi';
+import type { RegionalGuideFavoriteRepository } from '../data/regionalGuideFavoriteRepository';
 import type { RegionSelection } from '../domain/Region';
 import type { RegionalGuideLookupResult } from '../domain/RegionalDisposalGuide';
+import { createRegionalGuideFavoriteTargetId } from '../domain/regionalGuideFavorite';
 import { RegionalGuideDetailScreen } from './RegionalGuideDetailScreen';
+import { RegionalGuideFavoritesProvider } from './RegionalGuideFavoritesContext';
 
 const selection: RegionSelection = {
   sido: { id: 'sido:11', level: 'sido', name: '서울특별시' },
@@ -330,6 +333,92 @@ describe('<RegionalGuideDetailScreen />', () => {
       expect(screen.getByLabelText('배출 안내 조회 성공')).toBeOnTheScreen(),
     );
     expect(client.fetchRegionalDisposalGuides).toHaveBeenCalledTimes(2);
+  });
+
+  it('상세에서 저장 성공 후 같은 공유 상태로 저장 여부를 갱신합니다', async () => {
+    const repository: RegionalGuideFavoriteRepository = {
+      load: jest.fn(async () => []),
+      save: jest.fn(async () => undefined),
+    };
+    await render(
+      <RegionalGuideFavoritesProvider repository={repository}>
+        <RegionalGuideDetailScreen
+          apiClient={clientReturning({ status: 'success', guides: [guide()] })}
+          selection={selection}
+        />
+      </RegionalGuideFavoritesProvider>,
+    );
+
+    const favoriteLabel = '서울특별시 강남구 역삼1동 즐겨찾기';
+    const favoriteToggle = await screen.findByLabelText(favoriteLabel);
+    expect(favoriteToggle.props.accessibilityState).toMatchObject({
+      checked: false,
+    });
+    expect(screen.queryByText('☆ 저장하기')).not.toBeOnTheScreen();
+
+    await fireEvent.press(favoriteToggle);
+
+    await waitFor(() => expect(repository.save).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByLabelText(favoriteLabel).props.accessibilityState).toMatchObject({
+        checked: true,
+      }),
+    );
+  });
+
+  it('저장 실패 시 Kotlin 앱과 같은 하단 스낵바를 표시합니다', async () => {
+    const repository: RegionalGuideFavoriteRepository = {
+      load: jest.fn(async () => []),
+      save: jest.fn(async () => {
+        throw new Error('write failed');
+      }),
+    };
+    await render(
+      <RegionalGuideFavoritesProvider repository={repository}>
+        <RegionalGuideDetailScreen
+          apiClient={clientReturning({ status: 'success', guides: [guide()] })}
+          selection={selection}
+        />
+      </RegionalGuideFavoritesProvider>,
+    );
+
+    await fireEvent.press(
+      await screen.findByLabelText('서울특별시 강남구 역삼1동 즐겨찾기'),
+    );
+
+    expect(
+      await screen.findByLabelText(
+        '즐겨찾기를 변경하지 못했어요. 다시 시도해 주세요.',
+      ),
+    ).toBeOnTheScreen();
+  });
+
+  it('저장한 상세 대상을 못 찾으면 Favorite을 유지하며 재시도와 지역 재선택을 제공합니다', async () => {
+    const onReselectRegion = jest.fn();
+    const savedGuide = { ...guide(), managementZoneName: '저장 권역' };
+    const targetId = createRegionalGuideFavoriteTargetId(selection, savedGuide);
+    const client = clientReturning({
+      status: 'success',
+      guides: [{ ...guide(), managementZoneName: '다른 권역' }],
+    });
+    await render(
+      <RegionalGuideDetailScreen
+        apiClient={client}
+        initialFavoriteTargetId={targetId}
+        onReselectRegion={onReselectRegion}
+        selection={selection}
+      />,
+    );
+
+    expect(
+      await screen.findByLabelText('저장한 지역 가이드 상세 복원 실패'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('다시 시도'));
+    await waitFor(() =>
+      expect(client.fetchRegionalDisposalGuides).toHaveBeenCalledTimes(2),
+    );
+    await fireEvent.press(screen.getByLabelText('지역 다시 선택하기'));
+    expect(onReselectRegion).toHaveBeenCalledTimes(1);
   });
 });
 

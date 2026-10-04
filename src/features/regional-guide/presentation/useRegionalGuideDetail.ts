@@ -14,6 +14,8 @@ import {
   selectRegionalGuideCandidate,
   type RegionalGuideCandidateReason,
 } from '../domain/selectRegionalGuideCandidate';
+import type { RegionSelection } from '../domain/Region';
+import { createRegionalGuideFavoriteTargetId } from '../domain/regionalGuideFavorite';
 
 export type RegionalGuideDetailState =
   | Readonly<{ status: 'idle' }>
@@ -32,12 +34,17 @@ export type RegionalGuideDetailState =
     }>
   | Readonly<{ status: 'not-found' }>
   | Readonly<{ status: 'not-provided' }>
+  | Readonly<{ status: 'restore-not-found' }>
   | Readonly<{ status: 'failure'; reason: RegionalGuideFailureReason }>;
 
 const defaultClient = createRegionalGuideApiClient();
 
 export function useRegionalGuideDetail(
   providedClient: RegionalGuideApiClient | undefined,
+  restoreTarget?: Readonly<{
+    targetId: string;
+    selection: RegionSelection;
+  }>,
 ) {
   const client = providedClient ?? defaultClient;
   const activeControllerRef = useRef<AbortController | undefined>(undefined);
@@ -76,7 +83,9 @@ export function useRegionalGuideDetail(
 
         if (result.status === 'not-found') {
           setCandidateHistory(undefined);
-          setState({ status: 'not-found' });
+          setState({
+            status: restoreTarget ? 'restore-not-found' : 'not-found',
+          });
           return;
         }
         if (result.status === 'failure') {
@@ -85,6 +94,29 @@ export function useRegionalGuideDetail(
         }
 
         setCandidateHistory(undefined);
+        if (restoreTarget) {
+          const restoredGuide = result.guides.find(
+            guide =>
+              createRegionalGuideFavoriteTargetId(
+                restoreTarget.selection,
+                guide,
+              ) === restoreTarget.targetId,
+          );
+          if (!restoredGuide) {
+            setState({ status: 'restore-not-found' });
+            return;
+          }
+          setState(
+            result.status === 'partial'
+              ? {
+                  status: 'partial',
+                  guides: [restoredGuide],
+                  metadata: result.metadata,
+                }
+              : { status: 'success', guides: [restoredGuide] },
+          );
+          return;
+        }
         const selection = selectRegionalGuideCandidate(result.guides, query);
         if (selection.status === 'candidates') {
           setState({
@@ -125,7 +157,7 @@ export function useRegionalGuideDetail(
         }
       }
     },
-    [client],
+    [client, restoreTarget],
   );
 
   const lookup = useCallback(

@@ -2,6 +2,7 @@ import { useIsFocused, useNavigation, useRoute, type NavigationProp, type RouteP
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text } from 'react-native';
+import { FavoritesScreen } from '../../features/favorites/presentation/FavoritesScreen';
 
 import { ItemGuideDetailScreen } from '../../features/item-search/presentation/ItemGuideDetailScreen';
 import { ItemSearchScreen } from '../../features/item-search/presentation/ItemSearchScreen';
@@ -78,10 +79,11 @@ function ItemGuideDetailRoute() {
 
 function FavoritesRoute() {
   const navigation = useNavigation<NativeStackNavigationProp<FavoritesStackParamList>>();
-  return <ItemFavoritesScreen onSearch={() => navigation.getParent<NavigationProp<AppTabParamList>>()?.navigate(
+  return <FavoritesScreen renderItemContent={header => <ItemFavoritesScreen header={header}
+    onSearch={() => navigation.getParent<NavigationProp<AppTabParamList>>()?.navigate(
     BOTTOM_TAB_ROUTES.HOME, { screen: APP_SCREEN_ROUTES.ITEM_SEARCH })}
     onGuideSelected={guideId => navigation.navigate(APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL,
-    { guideId, source: 'FAVORITES' })} />;
+    { guideId, source: 'FAVORITES' })} />} />;
 }
 
 function QuickCategorySettingsRoute() {

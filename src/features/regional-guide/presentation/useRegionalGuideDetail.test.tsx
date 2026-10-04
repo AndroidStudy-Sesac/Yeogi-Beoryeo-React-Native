@@ -2,6 +2,8 @@ import { act, renderHook } from '@testing-library/react-native';
 
 import type { RegionalGuideApiClient } from '../data/regionalGuideApi';
 import type { RegionalGuideLookupResult } from '../domain/RegionalDisposalGuide';
+import type { RegionSelection } from '../domain/Region';
+import { createRegionalGuideFavoriteTargetId } from '../domain/regionalGuideFavorite';
 import { useRegionalGuideDetail } from './useRegionalGuideDetail';
 
 describe('useRegionalGuideDetail', () => {
@@ -326,6 +328,50 @@ describe('useRegionalGuideDetail', () => {
       guides: [firstGuide, secondGuide],
     });
   });
+
+  it('Favorite 복원은 후보를 묻지 않고 저장한 실제 안내 대상을 선택합니다', async () => {
+    const selection = favoriteSelection();
+    const firstGuide = guide('1권역');
+    const savedGuide = guide('2권역');
+    const client = clientReturning({
+      status: 'success',
+      guides: [firstGuide, { ...savedGuide, disposalPlace: '최신 장소' }],
+    });
+    const targetId = createRegionalGuideFavoriteTargetId(selection, savedGuide);
+    const { result } = await renderHook(() =>
+      useRegionalGuideDetail(client, { selection, targetId }),
+    );
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+
+    expect(result.current.state).toMatchObject({
+      status: 'success',
+      guides: [{ managementZoneName: '2권역', disposalPlace: '최신 장소' }],
+    });
+  });
+
+  it('최신 응답에서 Favorite 대상을 못 찾아도 저장 삭제와 구분되는 상태를 냅니다', async () => {
+    const selection = favoriteSelection();
+    const targetId = createRegionalGuideFavoriteTargetId(selection, guide('2권역'));
+    const client = clientReturning({ status: 'success', guides: [guide('1권역')] });
+    const { result } = await renderHook(() =>
+      useRegionalGuideDetail(client, { selection, targetId }),
+    );
+
+    await act(() =>
+      result.current.lookup({
+        sigunguName: '제주시',
+        eupmyeondongName: '노형동',
+      }),
+    );
+
+    expect(result.current.state).toEqual({ status: 'restore-not-found' });
+  });
 });
 
 function guide(managementZoneName: string) {
@@ -333,6 +379,24 @@ function guide(managementZoneName: string) {
     managementZoneName,
     targetRegionName: '노형동',
     schedules: [],
+  };
+}
+
+function favoriteSelection(): RegionSelection {
+  return {
+    sido: { id: 'sido:50', level: 'sido', name: '제주특별자치도' },
+    sigungu: {
+      id: 'sigungu:50110',
+      level: 'sigungu',
+      name: '제주시',
+      parentId: 'sido:50',
+    },
+    eupmyeondong: {
+      id: 'eupmyeondong:5011066000',
+      level: 'eupmyeondong',
+      name: '노형동',
+      parentId: 'sigungu:50110',
+    },
   };
 }
 

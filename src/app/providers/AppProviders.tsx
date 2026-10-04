@@ -3,6 +3,7 @@ import type { PropsWithChildren } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ItemPreferencesProvider } from '../../features/item-search/presentation/ItemPreferencesContext';
 import { ItemPreferenceFeedback } from '../../features/item-search/presentation/ItemFavoritesScreen';
+import { RegionalGuideFavoritesProvider } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
 
 export function AppProviders({ children, initialState, onStateChange }: PropsWithChildren<{
   initialState?: InitialState;
@@ -11,7 +12,9 @@ export function AppProviders({ children, initialState, onStateChange }: PropsWit
   return (
     <SafeAreaProvider>
       <ItemPreferencesProvider>
-        <NavigationContainer initialState={initialState} onStateChange={onStateChange}>{children}</NavigationContainer>
+        <RegionalGuideFavoritesProvider>
+          <NavigationContainer initialState={initialState} onStateChange={onStateChange}>{children}</NavigationContainer>
+        </RegionalGuideFavoritesProvider>
         <ItemPreferenceFeedback />
       </ItemPreferencesProvider>
     </SafeAreaProvider>
