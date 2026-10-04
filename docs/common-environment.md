@@ -12,7 +12,7 @@
 | --- | --- |
 | Node.js | 24.14.0 |
 | npm | 11.9.0 |
-| Expo SDK | 57.0.25 |
+| Expo SDK | 57.0.26 |
 | React Native | 0.86.3 |
 | React | 19.2.3 |
 | TypeScript | 6.0.3 |
@@ -134,6 +134,8 @@ CI도 같은 방식으로 Android 프로젝트를 생성한 뒤 debug APK를 빌
 ## CI 통과 조건
 
 `develop`을 대상으로 하는 pull request와 `develop` push에서 CI를 실행합니다.
+
+병합 직전에 위 기준의 Node.js와 npm 환경에서 `npm run expo:check`를 다시 실행합니다. 코드와 lockfile이 같아도 Expo 권장 패치 버전은 달라질 수 있습니다. 검사가 실패하면 필요한 호환 패치와 lockfile을 갱신하고 품질 검사와 네이티브 빌드를 다시 확인합니다. 병합 후에는 `develop`의 해당 커밋 CI가 성공하는지 확인합니다.
 
 품질 검사 job은 다음 항목을 확인합니다.
 
