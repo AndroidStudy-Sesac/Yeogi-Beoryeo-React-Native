@@ -71,7 +71,8 @@ test('commits A and releases its button while B is still pending, then permits r
   const a = deferred();
   const b = deferred();
   backend.setItem.mockImplementationOnce(() => a.promise).mockImplementationOnce(() => b.promise);
-  const store = new ItemPreferencesStore(backend, () => 100);
+  let elapsed = 0;
+  const store = new ItemPreferencesStore(backend, () => 100, () => elapsed);
   await store.load();
   const saveA = store.toggleFavorite('item-guide-0001');
   const saveB = store.toggleFavorite('item-guide-0002');
@@ -80,6 +81,7 @@ test('commits A and releases its button while B is still pending, then permits r
   await saveA;
   expect(store.getSnapshot().data.favorites.map(item => item.id)).toEqual(['item-guide-0001']);
   expect(store.getSnapshot().pending).toEqual(['item-guide-0002']);
+  elapsed = 500;
   const removeA = store.toggleFavorite('item-guide-0001');
   b.resolve();
   await Promise.all([saveB, removeA]);
@@ -89,6 +91,53 @@ test('commits A and releases its button while B is still pending, then permits r
   const relaunched = new ItemPreferencesStore(storage(persisted[1]));
   await relaunched.load();
   expect(relaunched.getSnapshot().data).toEqual(store.getSnapshot().data);
+});
+
+test('guards the same canonical favorite for 500ms while other items can be saved', async () => {
+  const backend = storage();
+  let elapsed = 0;
+  const store = new ItemPreferencesStore(backend, Date.now, () => elapsed);
+  await store.load();
+  expect(await store.toggleFavorite('종이')).toBe(true);
+  elapsed = 499;
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(false);
+  expect(await store.toggleFavorite('item-guide-0002')).toBe(true);
+  expect(backend.setItem).toHaveBeenCalledTimes(2);
+  expect(store.getSnapshot().data.favorites.map(item => item.id)).toContain('item-guide-0001');
+  elapsed = 500;
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(true);
+  expect(store.getSnapshot().data.favorites.map(item => item.id)).not.toContain('item-guide-0001');
+});
+
+test('keeps the guard while a write is pending beyond 500ms and does not extend it for ignored taps', async () => {
+  const backend = storage();
+  const write = deferred();
+  backend.setItem.mockImplementationOnce(() => write.promise);
+  let elapsed = 0;
+  const store = new ItemPreferencesStore(backend, Date.now, () => elapsed);
+  await store.load();
+  const saving = store.toggleFavorite('item-guide-0001');
+  elapsed = 700;
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(false);
+  write.resolve();
+  await saving;
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(true);
+  expect(store.getSnapshot().data.favorites).toEqual([]);
+});
+
+test('preserves the 500ms guard after a failed write and then permits retry', async () => {
+  const backend = storage();
+  backend.setItem.mockRejectedValueOnce(new Error('disk full'));
+  let elapsed = 0;
+  const store = new ItemPreferencesStore(backend, Date.now, () => elapsed);
+  await store.load();
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(false);
+  elapsed = 499;
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(false);
+  expect(backend.setItem).toHaveBeenCalledTimes(1);
+  elapsed = 500;
+  expect(await store.toggleFavorite('item-guide-0001')).toBe(true);
+  expect(store.getSnapshot().data.favorites).toHaveLength(1);
 });
 
 test('a failed write preserves committed state and later queued writes remain valid', async () => {

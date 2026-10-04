@@ -47,8 +47,13 @@ export class ItemPreferencesStore {
   private readonly listeners = new Set<() => void>();
   private loadRequest: Promise<void> | undefined;
   private writes = Promise.resolve();
+  private readonly favoriteToggledAt = new Map<string, number>();
 
-  constructor(private readonly storage: Storage = AsyncStorage, private readonly now = Date.now) {}
+  constructor(
+    private readonly storage: Storage = AsyncStorage,
+    private readonly now = Date.now,
+    private readonly monotonicNow = () => performance.now(),
+  ) {}
 
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => {
@@ -75,7 +80,11 @@ export class ItemPreferencesStore {
 
   toggleFavorite = (identifier: string) => {
     const guide = loadItemGuide(identifier);
-    if (!guide) return Promise.resolve(false);
+    if (!guide || this.state.status !== 'ready' || this.state.pending.includes(guide.id)) return Promise.resolve(false);
+    const currentTime = this.monotonicNow();
+    const previousTime = this.favoriteToggledAt.get(guide.id);
+    if (previousTime !== undefined && currentTime - previousTime < 500) return Promise.resolve(false);
+    this.favoriteToggledAt.set(guide.id, currentTime);
     return this.change(guide.id, data => {
       const exists = data.favorites.some(item => item.id === guide.id);
       const favorites = data.favorites.filter(item => item.id !== guide.id);
