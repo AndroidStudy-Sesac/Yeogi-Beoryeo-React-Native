@@ -59,7 +59,7 @@ const EMPTY_CONTENT: Readonly<
   },
   REGIONAL_GUIDE: {
     title: '아직 즐겨찾기한 지역 가이드가 없어요',
-    description: '지역 가이드 상세 화면에서 별을 누르면 여기에 모아볼 수 있어요.',
+    description: '지역 가이드에서 별을 눌러 저장해 보세요.',
     actionLabel: '지역별 배출 가이드 찾아보기',
   },
 };
