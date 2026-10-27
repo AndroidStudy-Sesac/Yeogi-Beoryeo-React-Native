@@ -15,6 +15,48 @@ import { RegionalGuideFavoritesProvider } from './RegionalGuideFavoritesContext'
 import { useHomeRegionalGuideSummary } from './useHomeRegionalGuideSummary';
 
 describe('useHomeRegionalGuideSummary', () => {
+  it('Favorite 복원 실패를 loading보다 우선 표시합니다', async () => {
+    const favoriteRepository: RegionalGuideFavoriteRepository = {
+      load: jest.fn(async () => {
+        throw new Error('read failed');
+      }),
+      save: jest.fn(async () => undefined),
+    };
+    const representativeRepository = representativeRepositoryReturning();
+    const { result } = await renderHook(
+      () => useHomeRegionalGuideSummary(true, apiClient()),
+      {
+        wrapper: wrapperWithRepositories(
+          favoriteRepository,
+          representativeRepository,
+        ),
+      },
+    );
+
+    await waitFor(() =>
+      expect(result.current.state.status).toBe('favorites-failure'),
+    );
+    expect(representativeRepository.load).not.toHaveBeenCalled();
+  });
+
+  it('대표 지역 복원 실패를 별도 상태로 표시합니다', async () => {
+    const favorite = fixture('강남구');
+    const representativeRepository: HomeRegionalGuideRepresentativeRepository = {
+      load: jest.fn(async () => {
+        throw new Error('read failed');
+      }),
+      save: jest.fn(async () => undefined),
+    };
+    const { result } = await renderHook(
+      () => useHomeRegionalGuideSummary(true, apiClient()),
+      { wrapper: wrapper([favorite], undefined, representativeRepository) },
+    );
+
+    await waitFor(() =>
+      expect(result.current.state.status).toBe('representative-failure'),
+    );
+  });
+
   it('Favorite 없음과 대표 지역 없음 상태를 구분합니다', async () => {
     const client = apiClient();
     const empty = await renderHook(() => useHomeRegionalGuideSummary(true, client), {
@@ -57,6 +99,32 @@ describe('useHomeRegionalGuideSummary', () => {
       summary: { regionName: '서울특별시 > 강남구 > 강남구' },
     });
     expect(client.clearCache).toHaveBeenCalledWith('강남구');
+  });
+
+  it('부분 조회에서 대표 가이드를 찾지 못하면 이전 정상 요약을 유지합니다', async () => {
+    const favorite = fixture('강남구');
+    const client = apiClient(
+      { status: 'success', guides: [guideFixture('강남구')] },
+      {
+        status: 'partial',
+        guides: [guideFixture('서초구')],
+        metadata: partialMetadata('network'),
+      },
+    );
+    const { result } = await renderHook(
+      () => useHomeRegionalGuideSummary(true, client),
+      { wrapper: wrapper([favorite], favorite.targetId) },
+    );
+    await waitFor(() => expect(result.current.state.status).toBe('ready'));
+
+    await act(async () => result.current.retry());
+
+    expect(result.current.state).toMatchObject({
+      status: 'ready',
+      isRefreshing: false,
+      refreshError: 'network',
+      summary: { regionName: '서울특별시 > 강남구 > 강남구' },
+    });
   });
 
   it.each([
@@ -199,6 +267,13 @@ function wrapper(
     load: jest.fn(async () => targetId),
     save: jest.fn(async () => undefined),
   };
+  return wrapperWithRepositories(favoriteRepository, representativeRepository);
+}
+
+function wrapperWithRepositories(
+  favoriteRepository: RegionalGuideFavoriteRepository,
+  representativeRepository: HomeRegionalGuideRepresentativeRepository,
+) {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <RegionalGuideFavoritesProvider repository={favoriteRepository}>
@@ -209,6 +284,15 @@ function wrapper(
         </HomeRegionalGuideRepresentativeProvider>
       </RegionalGuideFavoritesProvider>
     );
+  };
+}
+
+function representativeRepositoryReturning(
+  targetId?: string,
+): HomeRegionalGuideRepresentativeRepository {
+  return {
+    load: jest.fn(async () => targetId),
+    save: jest.fn(async () => undefined),
   };
 }
 
@@ -255,6 +339,17 @@ function guideFixture(sigunguName: string) {
       },
     ],
   };
+}
+
+function partialMetadata(reason: 'network') {
+  return {
+    reason,
+    fetchedPageCount: 1,
+    receivedItemCount: 1,
+    totalCount: 2,
+    failedPageNo: 2,
+    duplicateGuideCount: 0,
+  } as const;
 }
 
 function deferred<T>() {

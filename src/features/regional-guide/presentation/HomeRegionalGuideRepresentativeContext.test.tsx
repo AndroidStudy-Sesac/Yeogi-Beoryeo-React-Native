@@ -70,6 +70,30 @@ describe('HomeRegionalGuideRepresentativeProvider', () => {
     expect(result.current.favorites.isFavorite(second.targetId)).toBe(true);
     expect(representativeRepository.save).toHaveBeenLastCalledWith(undefined);
   });
+
+  it('대표 지역 복원 실패를 구분하고 다시 불러옵니다', async () => {
+    const favorite = fixture('강남구');
+    const representativeRepository: HomeRegionalGuideRepresentativeRepository = {
+      load: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('read failed'))
+        .mockResolvedValueOnce(favorite.targetId),
+      save: jest.fn(async () => undefined),
+    };
+    const { result } = await renderHook(
+      () => useHomeRegionalGuideRepresentative(),
+      { wrapper: wrapper([favorite], representativeRepository) },
+    );
+
+    await waitFor(() => expect(result.current.loadState).toBe('error'));
+    expect(result.current.targetId).toBeUndefined();
+
+    await act(async () => result.current.retryLoad());
+
+    expect(result.current.loadState).toBe('ready');
+    expect(result.current.targetId).toBe(favorite.targetId);
+    expect(representativeRepository.load).toHaveBeenCalledTimes(2);
+  });
 });
 
 function wrapper(

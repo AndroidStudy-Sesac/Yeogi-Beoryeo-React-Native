@@ -9,6 +9,7 @@ const actions = {
   onOpenSaved: jest.fn(),
   onRetry: jest.fn(),
   onRetryFavorites: jest.fn(),
+  onRetryRepresentative: jest.fn(),
 };
 
 describe('<HomeRegionalGuideSummaryCard />', () => {
@@ -102,6 +103,21 @@ describe('<HomeRegionalGuideSummaryCard />', () => {
     await fireEvent.press(screen.getByLabelText('배출 정보 다시 불러오기'));
     expect(actions.onRetry).toHaveBeenCalledTimes(1);
     expect(actions.onOpenDetail).not.toHaveBeenCalled();
+  });
+
+  it('대표 지역 복원 실패를 표시하고 다시 불러옵니다', async () => {
+    await render(
+      <HomeRegionalGuideSummaryCard
+        {...actions}
+        state={{ status: 'representative-failure' }}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText('홈 대표 지역을 불러오지 못했어요.'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('홈 대표 지역 불러오기 실패'));
+    expect(actions.onRetryRepresentative).toHaveBeenCalledTimes(1);
   });
 });
 

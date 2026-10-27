@@ -7,6 +7,7 @@ import { ItemGuideDetailScreen } from '../../features/item-search/presentation/I
 import { ItemSearchScreen } from '../../features/item-search/presentation/ItemSearchScreen';
 import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
 import { HomeRegionalGuideSummaryCard } from '../../features/home/presentation/HomeRegionalGuideSummaryCard';
+import { useHomeRegionalGuideRepresentative } from '../../features/regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
 import { useRegionalGuideFavorites } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
 import { useHomeRegionalGuideSummary } from '../../features/regional-guide/presentation/useHomeRegionalGuideSummary';
 import type { AppScreenRegistry } from './AppNavigationContext';
@@ -22,6 +23,7 @@ function ItemSearchRoute() {
   const route = useRoute<RouteProp<HomeStackParamList, 'ItemSearch'>>();
   const focused = useIsFocused();
   const favorites = useRegionalGuideFavorites();
+  const representative = useHomeRegionalGuideRepresentative();
   const summary = useHomeRegionalGuideSummary(focused);
   const tabNavigation = () =>
     navigation.getParent<BottomTabNavigationProp<AppTabParamList>>();
@@ -56,6 +58,7 @@ function ItemSearchRoute() {
       )}
       onRetry={() => void summary.retry()}
       onRetryFavorites={() => void favorites.retryLoad()}
+      onRetryRepresentative={() => void representative.retryLoad()}
     />}
     onGuideSelected={guideId => navigation.navigate(APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL, { guideId, source: 'SEARCH' })} />;
 }

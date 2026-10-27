@@ -12,18 +12,23 @@ import {
 import type {
   RegionalDisposalGuide,
   RegionalGuideFailureReason,
+  RegionalGuidePartialResultReason,
 } from '../domain/RegionalDisposalGuide';
 import {
   findFavoriteGuide,
   type RegionalGuideFavorite,
 } from '../domain/regionalGuideFavorite';
 import { formatRegionSelection } from '../domain/Region';
-import { useHomeRegionalGuideRepresentative } from './HomeRegionalGuideRepresentativeContext';
+import {
+  useHomeRegionalGuideRepresentative,
+  type HomeRegionalGuideRepresentativeLoadState,
+} from './HomeRegionalGuideRepresentativeContext';
 import { useRegionalGuideFavorites } from './RegionalGuideFavoritesContext';
 
 export type HomeRegionalGuideSummaryState =
   | Readonly<{ status: 'loading'; regionName?: string; targetId?: string }>
   | Readonly<{ status: 'favorites-failure' }>
+  | Readonly<{ status: 'representative-failure' }>
   | Readonly<{ status: 'no-favorite' }>
   | Readonly<{ status: 'no-representative' }>
   | Readonly<{
@@ -105,6 +110,15 @@ export function useHomeRegionalGuideSummary(
 
         const guide = findFavoriteGuide(favorite, result.guides);
         if (!guide) {
+          if (result.status === 'partial') {
+            showFailure(
+              partialFailureReason(result.metadata.reason),
+              favorite,
+              previous,
+              setState,
+            );
+            return;
+          }
           readySnapshotRef.current = undefined;
           setState({ status: 'not-provided', favorite });
           return;
@@ -202,13 +216,15 @@ function deriveVisibleState(
   lookupState: HomeRegionalGuideSummaryState,
   favoriteLoadState: 'loading' | 'ready' | 'error',
   favoriteCount: number,
-  representativeLoadState: 'loading' | 'ready',
+  representativeLoadState: HomeRegionalGuideRepresentativeLoadState,
   representative: RegionalGuideFavorite | undefined,
 ): HomeRegionalGuideSummaryState {
-  if (favoriteLoadState === 'loading' || representativeLoadState === 'loading') {
-    return { status: 'loading' };
-  }
   if (favoriteLoadState === 'error') return { status: 'favorites-failure' };
+  if (favoriteLoadState === 'loading') return { status: 'loading' };
+  if (representativeLoadState === 'error') {
+    return { status: 'representative-failure' };
+  }
+  if (representativeLoadState === 'loading') return { status: 'loading' };
   if (favoriteCount === 0) return { status: 'no-favorite' };
   if (!representative) return { status: 'no-representative' };
 
@@ -247,4 +263,19 @@ function showFailure(
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
+}
+
+function partialFailureReason(
+  reason: RegionalGuidePartialResultReason,
+): RegionalGuideFailureReason {
+  switch (reason) {
+    case 'timeout':
+    case 'network':
+    case 'api':
+      return reason;
+    case 'page-limit':
+    case 'inconsistent-response':
+    case 'unknown':
+      return 'unknown';
+  }
 }

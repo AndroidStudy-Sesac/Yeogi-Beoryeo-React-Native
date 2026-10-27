@@ -21,6 +21,7 @@ export function HomeRegionalGuideSummaryCard({
   onOpenSaved,
   onRetry,
   onRetryFavorites,
+  onRetryRepresentative,
 }: Readonly<{
   state: HomeRegionalGuideSummaryState;
   onOpenDetail(): void;
@@ -28,6 +29,7 @@ export function HomeRegionalGuideSummaryCard({
   onOpenSaved(): void;
   onRetry(): void;
   onRetryFavorites(): void;
+  onRetryRepresentative(): void;
 }>) {
   const colors = useItemColors();
 
@@ -113,6 +115,8 @@ export function HomeRegionalGuideSummaryCard({
         ? onOpenSaved
         : state.status === 'favorites-failure'
           ? onRetryFavorites
+          : state.status === 'representative-failure'
+            ? onRetryRepresentative
           : state.status === 'failure' ||
               state.status === 'not-found' ||
               state.status === 'not-provided'
@@ -226,6 +230,14 @@ function stateContent(
       accessibilityLabel: '홈 지역 가이드 저장 데이터 불러오기 실패',
       title: '지역별 배출 가이드',
       description: '저장된 지역 정보를 불러오지 못했어요.',
+      detail: '눌러서 다시 시도해 주세요.',
+    };
+  }
+  if (state.status === 'representative-failure') {
+    return {
+      accessibilityLabel: '홈 대표 지역 불러오기 실패',
+      title: '지역별 배출 가이드',
+      description: '홈 대표 지역을 불러오지 못했어요.',
       detail: '눌러서 다시 시도해 주세요.',
     };
   }

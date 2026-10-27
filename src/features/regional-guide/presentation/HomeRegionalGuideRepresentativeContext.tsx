@@ -17,7 +17,10 @@ import { resolveHomeRegionalGuideRepresentative } from '../domain/homeRegionalGu
 import type { RegionalGuideFavorite } from '../domain/regionalGuideFavorite';
 import { useRegionalGuideFavorites } from './RegionalGuideFavoritesContext';
 
-export type HomeRegionalGuideRepresentativeLoadState = 'loading' | 'ready';
+export type HomeRegionalGuideRepresentativeLoadState =
+  | 'loading'
+  | 'ready'
+  | 'error';
 
 type HomeRegionalGuideRepresentativeContextValue = Readonly<{
   favorite?: RegionalGuideFavorite;
@@ -26,6 +29,7 @@ type HomeRegionalGuideRepresentativeContextValue = Readonly<{
   targetId?: string;
   isPending: boolean;
   pendingTargetId?: string;
+  retryLoad(): Promise<void>;
   clearMutationError(): void;
   toggle(targetId: string): Promise<void>;
 }>;
@@ -48,12 +52,12 @@ export function HomeRegionalGuideRepresentativeProvider({
   const [pendingCount, setPendingCount] = useState(0);
   const [pendingTargetId, setPendingTargetId] = useState<string>();
   const mountedRef = useRef(true);
-  const restoredRef = useRef(false);
   const desiredRef = useRef<string | undefined>(undefined);
   const persistedRef = useRef<string | undefined>(undefined);
   const operationVersionRef = useRef(0);
   const writeChainRef = useRef<Promise<void>>(Promise.resolve());
   const favoritesRef = useRef(favorites.favorites);
+  const loadVersionRef = useRef(0);
 
   useEffect(() => {
     favoritesRef.current = favorites.favorites;
@@ -113,34 +117,36 @@ export function HomeRegionalGuideRepresentativeProvider({
     [repository],
   );
 
+  const retryLoad = useCallback(async () => {
+    const loadVersion = ++loadVersionRef.current;
+    await Promise.resolve();
+    if (!mountedRef.current || loadVersion !== loadVersionRef.current) return;
+    setLoadState('loading');
+    try {
+      const storedTargetId = await repository.load();
+      if (!mountedRef.current || loadVersion !== loadVersionRef.current) return;
+      const representative = resolveHomeRegionalGuideRepresentative(
+        storedTargetId,
+        favoritesRef.current,
+      );
+      const resolvedTargetId = representative?.targetId;
+      desiredRef.current = resolvedTargetId;
+      persistedRef.current = storedTargetId;
+      setTargetId(resolvedTargetId);
+      setLoadState('ready');
+      if (storedTargetId && !resolvedTargetId) {
+        void persist(undefined, false).catch(() => undefined);
+      }
+    } catch {
+      if (!mountedRef.current || loadVersion !== loadVersionRef.current) return;
+      setLoadState('error');
+    }
+  }, [persist, repository]);
+
   useEffect(() => {
-    if (restoredRef.current || favorites.loadState !== 'ready') return;
-    restoredRef.current = true;
-    void repository.load().then(
-      storedTargetId => {
-        if (!mountedRef.current) return;
-        const representative = resolveHomeRegionalGuideRepresentative(
-          storedTargetId,
-          favoritesRef.current,
-        );
-        const resolvedTargetId = representative?.targetId;
-        desiredRef.current = resolvedTargetId;
-        persistedRef.current = storedTargetId;
-        setTargetId(resolvedTargetId);
-        setLoadState('ready');
-        if (storedTargetId && !resolvedTargetId) {
-          void persist(undefined, false).catch(() => undefined);
-        }
-      },
-      () => {
-        if (!mountedRef.current) return;
-        desiredRef.current = undefined;
-        persistedRef.current = undefined;
-        setTargetId(undefined);
-        setLoadState('ready');
-      },
-    );
-  }, [favorites.loadState, persist, repository]);
+    if (favorites.loadState !== 'ready') return;
+    void retryLoad();
+  }, [favorites.loadState, retryLoad]);
 
   useEffect(() => {
     if (loadState !== 'ready' || !desiredRef.current) return;
@@ -194,10 +200,19 @@ export function HomeRegionalGuideRepresentativeProvider({
       targetId: favorite?.targetId,
       isPending: pendingCount > 0,
       pendingTargetId,
+      retryLoad,
       clearMutationError: () => setMutationError(undefined),
       toggle,
     }),
-    [favorite, loadState, mutationError, pendingCount, pendingTargetId, toggle],
+    [
+      favorite,
+      loadState,
+      mutationError,
+      pendingCount,
+      pendingTargetId,
+      retryLoad,
+      toggle,
+    ],
   );
 
   return (

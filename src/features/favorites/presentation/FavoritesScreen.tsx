@@ -27,7 +27,10 @@ import {
 } from '../../../common/presentation/StatusIcons';
 import { formatRegionSelection } from '../../regional-guide/domain/Region';
 import type { RegionalGuideFavorite } from '../../regional-guide/domain/regionalGuideFavorite';
-import { useHomeRegionalGuideRepresentative } from '../../regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
+import {
+  useHomeRegionalGuideRepresentative,
+  type HomeRegionalGuideRepresentativeLoadState,
+} from '../../regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
 import { useRegionalGuideFavorites } from '../../regional-guide/presentation/RegionalGuideFavoritesContext';
 
 const CATEGORIES: readonly Readonly<{
@@ -160,6 +163,7 @@ export function FavoritesScreen({
             void favorites.setFavorite(favorite, false).catch(() => undefined);
           }}
           onRetry={() => void favorites.retryLoad()}
+          onRetryRepresentative={() => void representative.retryLoad()}
           pendingTargetIds={new Set(
             favorites.favorites
               .filter(favorite => favorites.isPending(favorite.targetId))
@@ -167,6 +171,7 @@ export function FavoritesScreen({
           )}
           representativePending={representative.isPending}
           representativePendingTargetId={representative.pendingTargetId}
+          representativeLoadState={representative.loadState}
           representativeTargetId={representative.targetId}
         />
       </ScrollView>
@@ -227,10 +232,12 @@ function FavoritesContent({
   onOpenFavorite,
   onRemove,
   onRetry,
+  onRetryRepresentative,
   onToggleRepresentative,
   pendingTargetIds,
   representativePending,
   representativePendingTargetId,
+  representativeLoadState,
   representativeTargetId,
 }: Readonly<{
   category: FavoriteCategory;
@@ -240,10 +247,12 @@ function FavoritesContent({
   onOpenFavorite(favorite: RegionalGuideFavorite): void;
   onRemove(favorite: RegionalGuideFavorite): void;
   onRetry(): void;
+  onRetryRepresentative(): void;
   onToggleRepresentative(favorite: RegionalGuideFavorite): void;
   pendingTargetIds: ReadonlySet<string>;
   representativePending: boolean;
   representativePendingTargetId?: string;
+  representativeLoadState: HomeRegionalGuideRepresentativeLoadState;
   representativeTargetId?: string;
 }>) {
   if (loadState === 'loading') {
@@ -279,6 +288,30 @@ function FavoritesContent({
         icon="favorite"
         onAction={onAction}
         title={emptyContent.title}
+      />
+    );
+  }
+
+  if (representativeLoadState === 'loading') {
+    return (
+      <View
+        accessibilityLabel="대표 지역 로딩 중"
+        accessibilityLiveRegion="polite"
+        style={styles.loading}
+      >
+        <ActivityIndicator color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (representativeLoadState === 'error') {
+    return (
+      <FavoritesStatusCard
+        actionLabel="다시 시도"
+        description="잠시 후 다시 시도해 주세요."
+        icon="error"
+        onAction={onRetryRepresentative}
+        title="대표 지역을 불러오지 못했어요"
       />
     );
   }
