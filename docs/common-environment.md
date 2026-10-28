@@ -171,7 +171,9 @@ iOS build job은 macOS 26과 Xcode 26.6 환경에서 다음 항목을 확인합�
 | [node-forge 서명 검증 취약점](https://github.com/advisories/GHSA-86w9-cpqp-85rv) | Expo CLI와 코드 서명 도구가 사용합니다. 앱 소스에서 직접 사용하지 않으며 `expo-updates`와 업데이트 서명 설정도 추가하지 않았습니다. | 당시 최신 `1.4.0`에도 해당하며 공식 수정 버전이 없었습니다. 외부 인증서와 서명 검증을 사용하는 기능을 추가하기 전에 영향 범위를 다시 확인합니다. |
 | [uuid 출력 버퍼 경계 취약점](https://github.com/advisories/GHSA-w5hq-g745-h8pq) | Xcode 프로젝트 생성 도구 `xcode@3.0.1`이 `uuid@7.0.3`의 인자 없는 `v4()`를 호출합니다. 보안 공지는 출력 버퍼를 받는 `v3()`, `v5()`, `v6()`에 해당합니다. | 확인한 호출은 취약 API를 사용하지 않습니다. 수정된 `11.1.1`은 상위 도구의 `^7.0.3` 범위 밖이므로 상위 도구의 호환 업데이트를 확인합니다. |
 
-2026년 10월 28일 Expo `57.0.31` 호환 패치를 반영한 lockfile은 `node-forge 1.4.2`와 `xcode 4.0.0`을 사용하며, `xcode`의 `uuid 7.0.3` 의존성은 제거됐습니다. 해당 lockfile의 `npm ci`는 low 13개, high 3개, critical 1개를 보고했습니다.
+2026년 10월 28일 Expo `57.0.31` 호환 패치를 반영한 lockfile은 `node-forge 1.4.2`와 `xcode 4.0.0`을 사용하며, `xcode`의 `uuid 7.0.3` 의존성은 제거됐습니다.
+
+`shell-quote`는 `react-devtools-core`의 허용 범위 `^1.6.1`에 맞춰 `1.10.0`에서 `1.12.0`으로 갱신했습니다. 새 lockfile로 `npm ci` 후 확인한 `npm audit`에서 [명령 삽입 취약점 GHSA-pqg4-j6r4-53mv](https://github.com/advisories/GHSA-pqg4-j6r4-53mv)와 critical 경고는 제거됐으며, low 13개와 high 3개는 남아 있습니다. 수정 범위와 병합 상태는 [GitHub #98](https://github.com/AndroidStudy-Sesac/Yeogi-Beoryeo-React-Native/issues/98), [KAN-23](https://yeogi-beoryeo-rn.atlassian.net/browse/KAN-23)에서 추적합니다.
 
 보안 패치가 배포되면 의존 경로를 다시 확인하고 Expo 호환성, 타입 검사, lint, 테스트와 안드로이드/iOS 빌드를 통과한 뒤 lockfile을 갱신합니다. `npm audit fix --force`의 SDK 하향 변경이나 검증되지 않은 major override는 적용하지 않습니다.
 
