@@ -100,6 +100,7 @@ export function getSelectedBottomTab(
     case APP_SCREEN_ROUTES.REGIONAL_GUIDE:
       return getRegionalGuideBottomTab(route.params);
     case APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL:
+      if (route.params.source === 'HOME') return BOTTOM_TAB_ROUTES.HOME;
       if (route.params.source === 'MAP') return BOTTOM_TAB_ROUTES.MAP;
       if (route.params.source === 'FAVORITES') return BOTTOM_TAB_ROUTES.FAVORITES;
       return BOTTOM_TAB_ROUTES.REGIONAL_GUIDE;

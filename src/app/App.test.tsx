@@ -227,7 +227,7 @@ describe('<App />', () => {
     const fetchSpy = jest
       .spyOn(sharedRegionalGuideApiClient, 'fetchRegionalDisposalGuides')
       .mockResolvedValue({ status: 'success', guides: [guide] });
-    const { getByLabelText } = await render(<App />);
+    const { getByLabelText, getByRole } = await render(<App />);
 
     await fireEvent.press(
       await waitFor(() =>
@@ -241,6 +241,9 @@ describe('<App />', () => {
         getByLabelText('선택 지역: 서울특별시 > 강남구 > 역삼1동'),
       ).toBeTruthy(),
     );
+    expect(
+      getByRole('button', { name: '홈 탭' }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
     await fireEvent.press(getByLabelText('지역 변경'));
 
     await waitFor(() =>
