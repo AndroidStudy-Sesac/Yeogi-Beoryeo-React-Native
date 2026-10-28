@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
-  createRegionalGuideApiClient,
+  sharedRegionalGuideApiClient,
   type RegionalGuideApiClient,
 } from '../data/regionalGuideApi';
 import type {
@@ -37,8 +37,6 @@ export type RegionalGuideDetailState =
   | Readonly<{ status: 'restore-not-found' }>
   | Readonly<{ status: 'failure'; reason: RegionalGuideFailureReason }>;
 
-const defaultClient = createRegionalGuideApiClient();
-
 export function useRegionalGuideDetail(
   providedClient: RegionalGuideApiClient | undefined,
   restoreTarget?: Readonly<{
@@ -46,7 +44,7 @@ export function useRegionalGuideDetail(
     selection: RegionSelection;
   }>,
 ) {
-  const client = providedClient ?? defaultClient;
+  const client = providedClient ?? sharedRegionalGuideApiClient;
   const activeControllerRef = useRef<AbortController | undefined>(undefined);
   const [candidateHistory, setCandidateHistory] = useState<
     Extract<RegionalGuideDetailState, { status: 'candidates' }> | undefined

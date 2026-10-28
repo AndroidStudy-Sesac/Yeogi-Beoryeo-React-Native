@@ -45,9 +45,11 @@ export type CollectionSpotRouteType =
 export type ItemGuideDetailSource = 'SEARCH' | 'FAVORITES';
 export type RegionalGuideEntrySource = 'FAVORITES';
 export type RegionalGuideDetailSource =
+  | 'HOME'
   | 'REGIONAL_GUIDE'
   | 'MAP'
   | 'FAVORITES';
+export type FavoriteCategory = 'ITEM' | 'PLACE' | 'REGIONAL_GUIDE';
 
 export type SettingsDetailRouteType =
   | 'Notice'
@@ -128,6 +130,7 @@ export type HomeStackParamList = {
   ItemSearch: ItemSearchRouteParams | undefined;
   ItemUsefulGuide: ItemUsefulGuideRouteParams;
   QuickCategorySettings: QuickCategorySettingsRouteParams;
+  RegionalGuideDetail: RegionalGuideDetailRouteParams;
   Settings: undefined;
   SettingsDetail: SettingsDetailRouteParams;
 };
@@ -144,7 +147,7 @@ export type RegionalGuideStackParamList = {
 };
 
 export type FavoritesStackParamList = {
-  Favorites: undefined;
+  Favorites: Readonly<{ initialCategory?: FavoriteCategory }> | undefined;
   ItemGuideDetail: ItemGuideDetailRouteParams;
   Map: MapRouteParams | undefined;
   RegionalGuide: RegionalGuideRouteParams | undefined;

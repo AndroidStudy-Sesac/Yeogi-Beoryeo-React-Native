@@ -107,6 +107,8 @@ export function createRegionalGuideApiClient(
   };
 }
 
+export const sharedRegionalGuideApiClient = createRegionalGuideApiClient();
+
 export async function fetchRegionalDisposalGuides(
   sigunguName: string,
   config: RegionalGuideApiConfig,

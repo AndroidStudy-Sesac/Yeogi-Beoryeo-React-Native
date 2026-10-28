@@ -66,6 +66,7 @@ describe('화면별 선택 탭', () => {
   });
 
   it.each([
+    ['HOME' as const, BOTTOM_TAB_ROUTES.HOME],
     ['REGIONAL_GUIDE' as const, BOTTOM_TAB_ROUTES.REGIONAL_GUIDE],
     ['MAP' as const, BOTTOM_TAB_ROUTES.MAP],
     ['FAVORITES' as const, BOTTOM_TAB_ROUTES.FAVORITES],

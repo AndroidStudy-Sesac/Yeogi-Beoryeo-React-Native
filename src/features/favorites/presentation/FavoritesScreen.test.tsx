@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import type { RegionalGuideFavoriteRepository } from '../../regional-guide/data/regionalGuideFavoriteRepository';
+import type { HomeRegionalGuideRepresentativeRepository } from '../../regional-guide/data/homeRegionalGuideRepresentativeRepository';
 import { createRegionalGuideFavorite } from '../../regional-guide/domain/regionalGuideFavorite';
+import { HomeRegionalGuideRepresentativeProvider } from '../../regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
 import { RegionalGuideFavoritesProvider } from '../../regional-guide/presentation/RegionalGuideFavoritesContext';
 import { FavoritesScreen } from './FavoritesScreen';
 
@@ -117,6 +119,60 @@ describe('<FavoritesScreen />', () => {
     expect(screen.queryByText(/지역 가이드 \d+개/)).not.toBeOnTheScreen();
   });
 
+  it('Kotlin 앱과 같은 핀 버튼으로 홈 대표 지역을 선택하고 다시 해제합니다', async () => {
+    const favorite = fixture();
+    const representativeRepository: HomeRegionalGuideRepresentativeRepository = {
+      load: jest.fn(async () => undefined),
+      save: jest.fn(async () => undefined),
+    };
+    await renderScreen(repositoryReturning([favorite]), representativeRepository);
+    await fireEvent.press(
+      await screen.findByLabelText('지역 즐겨찾기 카테고리'),
+    );
+
+    const pin = await screen.findByLabelText(/홈 지역 가이드로 고정$/);
+    await fireEvent.press(pin);
+    await waitFor(() =>
+      expect(representativeRepository.save).toHaveBeenLastCalledWith(
+        favorite.targetId,
+      ),
+    );
+
+    await fireEvent.press(
+      await screen.findByLabelText(/홈 지역 가이드 고정 해제$/),
+    );
+    await waitFor(() =>
+      expect(representativeRepository.save).toHaveBeenLastCalledWith(undefined),
+    );
+  });
+
+  it('대표 지역 복원 오류를 표시하고 다시 불러옵니다', async () => {
+    const representativeRepository: HomeRegionalGuideRepresentativeRepository = {
+      load: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('read failed'))
+        .mockResolvedValueOnce(undefined),
+      save: jest.fn(async () => undefined),
+    };
+    await renderScreen(
+      repositoryReturning([fixture()]),
+      representativeRepository,
+    );
+    await fireEvent.press(
+      await screen.findByLabelText('지역 즐겨찾기 카테고리'),
+    );
+
+    expect(
+      await screen.findByText('대표 지역을 불러오지 못했어요'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByLabelText('다시 시도'));
+
+    expect(
+      await screen.findByText('서울특별시 > 강남구 > 역삼1동'),
+    ).toBeOnTheScreen();
+    expect(representativeRepository.load).toHaveBeenCalledTimes(2);
+  });
+
   it('같은 지역의 가이드를 대상과 관리구역이 포함된 접근성 이름으로 구분합니다', async () => {
     await renderScreen(repositoryReturning([fixture('1권역'), fixture('2권역')]));
 
@@ -147,10 +203,20 @@ describe('<FavoritesScreen />', () => {
   });
 });
 
-async function renderScreen(repository: RegionalGuideFavoriteRepository) {
+async function renderScreen(
+  repository: RegionalGuideFavoriteRepository,
+  representativeRepository: HomeRegionalGuideRepresentativeRepository = {
+    load: jest.fn(async () => undefined),
+    save: jest.fn(async () => undefined),
+  },
+) {
   return render(
     <RegionalGuideFavoritesProvider repository={repository}>
-      <FavoritesScreen />
+      <HomeRegionalGuideRepresentativeProvider
+        repository={representativeRepository}
+      >
+        <FavoritesScreen />
+      </HomeRegionalGuideRepresentativeProvider>
     </RegionalGuideFavoritesProvider>,
   );
 }

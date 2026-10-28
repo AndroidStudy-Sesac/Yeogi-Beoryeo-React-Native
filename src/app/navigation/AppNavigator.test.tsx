@@ -13,6 +13,10 @@ import { useState } from 'react';
 import { Button, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import type { HomeRegionalGuideRepresentativeRepository } from '../../features/regional-guide/data/homeRegionalGuideRepresentativeRepository';
+import type { RegionalGuideFavoriteRepository } from '../../features/regional-guide/data/regionalGuideFavoriteRepository';
+import { HomeRegionalGuideRepresentativeProvider } from '../../features/regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
+import { RegionalGuideFavoritesProvider } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
 import {
   createItemGuideDetailNavigationTarget,
   createMapNavigationTarget,
@@ -166,11 +170,25 @@ const screens: AppScreenRegistry = {
 
 async function renderNavigator(registry: AppScreenRegistry = screens) {
   const navigation = createNavigationContainerRef<AppTabParamList>();
+  const favoriteRepository: RegionalGuideFavoriteRepository = {
+    load: jest.fn(async () => []),
+    save: jest.fn(async () => undefined),
+  };
+  const representativeRepository: HomeRegionalGuideRepresentativeRepository = {
+    load: jest.fn(async () => undefined),
+    save: jest.fn(async () => undefined),
+  };
   const result = await render(
     <SafeAreaProvider>
-      <NavigationContainer ref={navigation}>
-        <AppNavigator screens={registry} />
-      </NavigationContainer>
+      <RegionalGuideFavoritesProvider repository={favoriteRepository}>
+        <HomeRegionalGuideRepresentativeProvider
+          repository={representativeRepository}
+        >
+          <NavigationContainer ref={navigation}>
+            <AppNavigator screens={registry} />
+          </NavigationContainer>
+        </HomeRegionalGuideRepresentativeProvider>
+      </RegionalGuideFavoritesProvider>
     </SafeAreaProvider>,
   );
   return { ...result, navigation };

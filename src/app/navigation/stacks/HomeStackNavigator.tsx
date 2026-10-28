@@ -22,6 +22,10 @@ export function HomeStackNavigator() {
         name={APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL}
       />
       <HomeStack.Screen
+        component={screens.RegionalGuideDetail}
+        name={APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL}
+      />
+      <HomeStack.Screen
         component={screens.QuickCategorySettings}
         name={APP_SCREEN_ROUTES.QUICK_CATEGORY_SETTINGS}
       />
