@@ -12,15 +12,17 @@ import { itemFonts, useItemColors } from './itemTheme';
 import { useItemSearch, type ItemSearchSnapshot, type SearchItems } from './useItemSearch';
 
 export function ItemSearchScreen({
-  initialQuery, savedState, onSnapshot, onGuideSelected, focused = true, searchItems, renderHome, favoriteIds,
+  initialQuery, savedState, onSnapshot, onGuideSelected, focused = true,
+  homeSummaryCard, searchItems, renderHome, favoriteIds,
 }: {
-  renderHome?: (searchField: ReactNode) => ReactNode;
+  renderHome?: (searchField: ReactNode, homeSummaryCard: ReactNode) => ReactNode;
   favoriteIds?: ReadonlySet<string>;
   initialQuery?: string;
   savedState?: ItemSearchSnapshot;
   onSnapshot?: (snapshot: ItemSearchSnapshot) => void;
   onGuideSelected: (id: string) => void;
   focused?: boolean;
+  homeSummaryCard?: ReactNode;
   searchItems?: SearchItems;
 }) {
   const search = useItemSearch({ initialQuery, savedState, onSnapshot, searchItems });
@@ -104,11 +106,12 @@ export function ItemSearchScreen({
 
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']}
     style={[styles.screen, { backgroundColor: colors.background }]}>
-    {!hasSearched && renderHome ? renderHome(searchField) : <>
+    {!hasSearched && renderHome ? renderHome(searchField, homeSummaryCard) : <>
     <ItemTopBar title={hasSearched ? '품목 검색' : '여기 버려'} onBack={hasSearched ? () => clearSearch() : undefined} />
     <View style={{ paddingHorizontal: horizontalPadding,
       paddingTop: 8 + (hasSearched && !hasResults ? screenSpace : 0),
       gap: hasResults ? 8 : screenSpace, paddingBottom: hasSummary ? 16 : screenSpace }}>
+      {!hasSearched ? homeSummaryCard : null}
       {searchField}
       {(search.status === 'success' || search.status === 'empty') &&
         <Text accessibilityRole="header" accessibilityLiveRegion="polite"

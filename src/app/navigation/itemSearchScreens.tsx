@@ -1,3 +1,4 @@
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useIsFocused, useNavigation, useRoute, type NavigationProp, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
@@ -16,15 +17,30 @@ import { loadItemGuide } from '../../features/item-search/data/itemCatalog';
 import { itemFonts, useItemColors } from '../../features/item-search/presentation/itemTheme';
 import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
 import type { ItemHomeSnapshot } from '../../features/item-search/presentation/homeLayout';
-import type { AppScreenRegistry } from './AppNavigationContext';
-import { APP_SCREEN_ROUTES, BOTTOM_TAB_ROUTES, type AppTabParamList, type FavoritesStackParamList, type HomeStackParamList } from './routes';
 import { createMapNavigationTarget, createRegionalGuideNavigationTarget } from './navigationTargets';
+import { HomeRegionalGuideSummaryCard } from '../../features/home/presentation/HomeRegionalGuideSummaryCard';
+import { useHomeRegionalGuideRepresentative } from '../../features/regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
+import { useRegionalGuideFavorites } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
+import { useHomeRegionalGuideSummary } from '../../features/regional-guide/presentation/useHomeRegionalGuideSummary';
+import type { AppScreenRegistry } from './AppNavigationContext';
+import {
+  APP_SCREEN_ROUTES,
+  BOTTOM_TAB_ROUTES,
+  type AppTabParamList,
+  type FavoritesStackParamList,
+  type HomeStackParamList,
+} from './routes';
 
 function ItemSearchRoute() {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList, 'ItemSearch'>>();
   const route = useRoute<RouteProp<HomeStackParamList, 'ItemSearch'>>();
   const focused = useIsFocused();
   const preferences = useItemPreferences();
+  const favorites = useRegionalGuideFavorites();
+  const representative = useHomeRegionalGuideRepresentative();
+  const summary = useHomeRegionalGuideSummary(focused);
+  const tabNavigation = () =>
+    navigation.getParent<BottomTabNavigationProp<AppTabParamList>>();
   const rememberSearch = useCallback((savedSearchState: ItemSearchSnapshot) => {
     navigation.setParams({ savedSearchState });
   }, [navigation]);
@@ -32,14 +48,41 @@ function ItemSearchRoute() {
     navigation.setParams({ savedHomeState });
   }, [navigation]);
 
+  const openSummaryDetail = () => {
+    if (summary.state.status !== 'ready') return;
+    navigation.navigate(APP_SCREEN_ROUTES.REGIONAL_GUIDE_DETAIL, {
+      initialFavoriteTargetId: summary.state.favorite.targetId,
+      selection: summary.state.favorite.selection,
+      source: 'HOME',
+    });
+  };
+
   return <ItemSearchScreen initialQuery={route.params?.initialQuery}
     savedState={route.params?.savedSearchState} onSnapshot={rememberSearch} focused={focused}
     favoriteIds={new Set(preferences.data.favorites.map(item => item.id))}
-    renderHome={searchField => <HomeContent searchField={searchField} focused={focused}
+    renderHome={(searchField, homeSummaryCard) => <HomeContent searchField={searchField} homeSummaryCard={homeSummaryCard} focused={focused}
       savedState={route.params?.savedHomeState} onSnapshot={rememberHome}
       onGuideSelected={guideId => navigation.navigate(APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL, { guideId, source: 'SEARCH' })}
       onUsefulGuide={guideType => navigation.navigate(APP_SCREEN_ROUTES.ITEM_USEFUL_GUIDE, { guideType })}
       onCategorySettings={maxSelectedCount => navigation.navigate(APP_SCREEN_ROUTES.QUICK_CATEGORY_SETTINGS, { maxSelectedCount })} />}
+    homeSummaryCard={<HomeRegionalGuideSummaryCard
+      state={summary.state}
+      onOpenDetail={openSummaryDetail}
+      onOpenRegionalGuide={() => tabNavigation()?.navigate(
+        BOTTOM_TAB_ROUTES.REGIONAL_GUIDE,
+        { screen: APP_SCREEN_ROUTES.REGIONAL_GUIDE },
+      )}
+      onOpenSaved={() => tabNavigation()?.navigate(
+        BOTTOM_TAB_ROUTES.FAVORITES,
+        {
+          screen: APP_SCREEN_ROUTES.FAVORITES,
+          params: { initialCategory: 'REGIONAL_GUIDE' },
+        },
+      )}
+      onRetry={() => void summary.retry()}
+      onRetryFavorites={() => void favorites.retryLoad()}
+      onRetryRepresentative={() => void representative.retryLoad()}
+    />}
     onGuideSelected={guideId => navigation.navigate(APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL, { guideId, source: 'SEARCH' })} />;
 }
 
@@ -79,7 +122,8 @@ function ItemGuideDetailRoute() {
 
 function FavoritesRoute() {
   const navigation = useNavigation<NativeStackNavigationProp<FavoritesStackParamList>>();
-  return <FavoritesScreen renderItemContent={header => <ItemFavoritesScreen header={header}
+  const route = useRoute<RouteProp<FavoritesStackParamList, 'Favorites'>>();
+  return <FavoritesScreen route={route} renderItemContent={header => <ItemFavoritesScreen header={header}
     onSearch={() => navigation.getParent<NavigationProp<AppTabParamList>>()?.navigate(
     BOTTOM_TAB_ROUTES.HOME, { screen: APP_SCREEN_ROUTES.ITEM_SEARCH })}
     onGuideSelected={guideId => navigation.navigate(APP_SCREEN_ROUTES.ITEM_GUIDE_DETAIL,

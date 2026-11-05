@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ItemPreferencesProvider } from '../../features/item-search/presentation/ItemPreferencesContext';
 import { ItemPreferenceFeedback } from '../../features/item-search/presentation/ItemFavoritesScreen';
 import { RegionalGuideFavoritesProvider } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
+import { HomeRegionalGuideRepresentativeProvider } from '../../features/regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
 
 export function AppProviders({ children, initialState, onStateChange }: PropsWithChildren<{
   initialState?: InitialState;
@@ -13,7 +14,9 @@ export function AppProviders({ children, initialState, onStateChange }: PropsWit
     <SafeAreaProvider>
       <ItemPreferencesProvider>
         <RegionalGuideFavoritesProvider>
-          <NavigationContainer initialState={initialState} onStateChange={onStateChange}>{children}</NavigationContainer>
+          <HomeRegionalGuideRepresentativeProvider>
+            <NavigationContainer initialState={initialState} onStateChange={onStateChange}>{children}</NavigationContainer>
+          </HomeRegionalGuideRepresentativeProvider>
         </RegionalGuideFavoritesProvider>
         <ItemPreferenceFeedback />
       </ItemPreferencesProvider>

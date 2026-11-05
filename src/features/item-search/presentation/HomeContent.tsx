@@ -10,11 +10,12 @@ import { categoryColors, itemFonts, useItemColors } from './itemTheme';
 import { homeCollapsedCount, homeGridMetrics, type ItemHomeSnapshot } from './homeLayout';
 import { usefulGuides, type UsefulGuideType } from './usefulGuides';
 
-export function HomeContent({ searchField, onGuideSelected, onUsefulGuide, onCategorySettings, savedState, onSnapshot, focused = true }: {
+export function HomeContent({ searchField, homeSummaryCard, onGuideSelected, onUsefulGuide, onCategorySettings, savedState, onSnapshot, focused = true }: {
   focused?: boolean;
   savedState?: ItemHomeSnapshot;
   onSnapshot?: (snapshot: ItemHomeSnapshot) => void;
   searchField: ReactNode;
+  homeSummaryCard?: ReactNode;
   onGuideSelected: (id: string) => void;
   onUsefulGuide: (type: UsefulGuideType) => void;
   onCategorySettings: (maximum: number) => void;
@@ -105,6 +106,7 @@ export function HomeContent({ searchField, onGuideSelected, onUsefulGuide, onCat
       </View>
       </View>
     </View>
+    {homeSummaryCard ? <View style={{ paddingHorizontal: padding }}>{homeSummaryCard}</View> : null}
     <View style={{ paddingHorizontal: padding }}>{searchField}</View>
     <View style={{ paddingHorizontal: padding, gap: 16 }} onLayout={event => setGridTop(event.nativeEvent.layout.y)}>
       <View style={styles.sectionHeading} onLayout={event => setSectionHeadingHeight(event.nativeEvent.layout.height)}>
