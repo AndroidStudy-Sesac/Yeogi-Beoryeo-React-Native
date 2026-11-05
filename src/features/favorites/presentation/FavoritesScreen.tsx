@@ -1,7 +1,7 @@
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,18 +16,22 @@ import {
   APP_SCREEN_ROUTES,
   BOTTOM_TAB_ROUTES,
   type AppTabParamList,
+  type FavoriteCategory,
   type FavoritesStackParamList,
 } from '../../../app/navigation/routes';
 import { MessageSnackbar } from '../../../common/presentation/MessageSnackbar';
 import {
   ErrorOutlineIcon,
   FavoriteIcon,
+  HomePinIcon,
 } from '../../../common/presentation/StatusIcons';
 import { formatRegionSelection } from '../../regional-guide/domain/Region';
 import type { RegionalGuideFavorite } from '../../regional-guide/domain/regionalGuideFavorite';
+import {
+  useHomeRegionalGuideRepresentative,
+  type HomeRegionalGuideRepresentativeLoadState,
+} from '../../regional-guide/presentation/HomeRegionalGuideRepresentativeContext';
 import { useRegionalGuideFavorites } from '../../regional-guide/presentation/RegionalGuideFavoritesContext';
-
-type FavoriteCategory = 'ITEM' | 'PLACE' | 'REGIONAL_GUIDE';
 
 const CATEGORIES: readonly Readonly<{
   id: FavoriteCategory;
@@ -64,19 +68,48 @@ const EMPTY_CONTENT: Readonly<
   },
 };
 
-export function FavoritesScreen() {
+export function FavoritesScreen({
+  route,
+}: Readonly<{
+  route?: RouteProp<FavoritesStackParamList, 'Favorites'>;
+}> = {}) {
   const navigation =
     useNavigation<NativeStackNavigationProp<FavoritesStackParamList>>();
-  const [category, setCategory] = useState<FavoriteCategory>('ITEM');
+  const [selectedCategory, setSelectedCategory] =
+    useState<FavoriteCategory>('ITEM');
+  const category = route?.params?.initialCategory ?? selectedCategory;
   const favorites = useRegionalGuideFavorites();
+  const representative = useHomeRegionalGuideRepresentative();
+  const favoriteMutationError = favorites.mutationError;
+  const clearFavoriteMutationError = favorites.clearMutationError;
+  const representativeMutationError = representative.mutationError;
+  const clearRepresentativeMutationError = representative.clearMutationError;
   const tabNavigation = () =>
     navigation.getParent<BottomTabNavigationProp<AppTabParamList>>();
 
+  const selectCategory = useCallback(
+    (nextCategory: FavoriteCategory) => {
+      setSelectedCategory(nextCategory);
+      if (route?.params?.initialCategory) {
+        navigation.setParams({ initialCategory: undefined });
+      }
+    },
+    [navigation, route?.params?.initialCategory],
+  );
+
   useEffect(() => {
-    if (!favorites.mutationError) return undefined;
-    const timeoutId = setTimeout(favorites.clearMutationError, 4_000);
+    if (!favoriteMutationError && !representativeMutationError) return undefined;
+    const timeoutId = setTimeout(() => {
+      clearFavoriteMutationError();
+      clearRepresentativeMutationError();
+    }, 4_000);
     return () => clearTimeout(timeoutId);
-  }, [favorites.clearMutationError, favorites.mutationError]);
+  }, [
+    clearFavoriteMutationError,
+    clearRepresentativeMutationError,
+    favoriteMutationError,
+    representativeMutationError,
+  ]);
 
   const openCategorySearch = (selectedCategory: FavoriteCategory) => {
     switch (selectedCategory) {
@@ -115,7 +148,7 @@ export function FavoritesScreen() {
           즐겨찾기
         </Text>
 
-        <FavoriteTabRow selectedCategory={category} onSelect={setCategory} />
+        <FavoriteTabRow selectedCategory={category} onSelect={selectCategory} />
 
         <FavoritesContent
           category={category}
@@ -123,20 +156,30 @@ export function FavoritesScreen() {
           loadState={favorites.loadState}
           onAction={() => openCategorySearch(category)}
           onOpenFavorite={openFavorite}
+          onToggleRepresentative={favorite => {
+            void representative.toggle(favorite.targetId).catch(() => undefined);
+          }}
           onRemove={favorite => {
             void favorites.setFavorite(favorite, false).catch(() => undefined);
           }}
           onRetry={() => void favorites.retryLoad()}
+          onRetryRepresentative={() => void representative.retryLoad()}
           pendingTargetIds={new Set(
             favorites.favorites
               .filter(favorite => favorites.isPending(favorite.targetId))
               .map(favorite => favorite.targetId),
           )}
+          representativePending={representative.isPending}
+          representativePendingTargetId={representative.pendingTargetId}
+          representativeLoadState={representative.loadState}
+          representativeTargetId={representative.targetId}
         />
       </ScrollView>
 
-      {favorites.mutationError ? (
-        <MessageSnackbar message={FAVORITE_UPDATE_FAILED_MESSAGE} />
+      {favorites.mutationError || representative.mutationError ? (
+        <MessageSnackbar
+          message={representative.mutationError ?? FAVORITE_UPDATE_FAILED_MESSAGE}
+        />
       ) : null}
     </SafeAreaView>
   );
@@ -189,7 +232,13 @@ function FavoritesContent({
   onOpenFavorite,
   onRemove,
   onRetry,
+  onRetryRepresentative,
+  onToggleRepresentative,
   pendingTargetIds,
+  representativePending,
+  representativePendingTargetId,
+  representativeLoadState,
+  representativeTargetId,
 }: Readonly<{
   category: FavoriteCategory;
   favorites: readonly RegionalGuideFavorite[];
@@ -198,7 +247,13 @@ function FavoritesContent({
   onOpenFavorite(favorite: RegionalGuideFavorite): void;
   onRemove(favorite: RegionalGuideFavorite): void;
   onRetry(): void;
+  onRetryRepresentative(): void;
+  onToggleRepresentative(favorite: RegionalGuideFavorite): void;
   pendingTargetIds: ReadonlySet<string>;
+  representativePending: boolean;
+  representativePendingTargetId?: string;
+  representativeLoadState: HomeRegionalGuideRepresentativeLoadState;
+  representativeTargetId?: string;
 }>) {
   if (loadState === 'loading') {
     return (
@@ -237,6 +292,30 @@ function FavoritesContent({
     );
   }
 
+  if (representativeLoadState === 'loading') {
+    return (
+      <View
+        accessibilityLabel="대표 지역 로딩 중"
+        accessibilityLiveRegion="polite"
+        style={styles.loading}
+      >
+        <ActivityIndicator color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (representativeLoadState === 'error') {
+    return (
+      <FavoritesStatusCard
+        actionLabel="다시 시도"
+        description="잠시 후 다시 시도해 주세요."
+        icon="error"
+        onAction={onRetryRepresentative}
+        title="대표 지역을 불러오지 못했어요"
+      />
+    );
+  }
+
   return (
     <View style={styles.favoriteList}>
       {favorites.map(favorite => (
@@ -245,7 +324,13 @@ function FavoritesContent({
           key={favorite.targetId}
           onOpen={() => onOpenFavorite(favorite)}
           onRemove={() => onRemove(favorite)}
+          onToggleRepresentative={() => onToggleRepresentative(favorite)}
           pending={pendingTargetIds.has(favorite.targetId)}
+          representative={representativeTargetId === favorite.targetId}
+          representativePending={representativePending}
+          showRepresentativeProgress={
+            representativePendingTargetId === favorite.targetId
+          }
         />
       ))}
     </View>
@@ -285,12 +370,20 @@ function FavoriteCard({
   favorite,
   onOpen,
   onRemove,
+  onToggleRepresentative,
   pending,
+  representative,
+  representativePending,
+  showRepresentativeProgress,
 }: Readonly<{
   favorite: RegionalGuideFavorite;
   onOpen(): void;
   onRemove(): void;
+  onToggleRepresentative(): void;
   pending: boolean;
+  representative: boolean;
+  representativePending: boolean;
+  showRepresentativeProgress: boolean;
 }>) {
   const regionPath = formatRegionSelection(favorite.selection);
   const title =
@@ -328,6 +421,38 @@ function FavoriteCard({
             </Text>
           </View>
         ) : null}
+      </Pressable>
+
+      <Pressable
+        accessibilityHint={
+          representative
+            ? '누르면 홈 대표 지역 고정을 해제합니다.'
+            : '누르면 홈 요약에 표시할 대표 지역으로 고정합니다.'
+        }
+        accessibilityLabel={`${accessibilityName} ${representative ? '홈 지역 가이드 고정 해제' : '홈 지역 가이드로 고정'}`}
+        accessibilityRole="button"
+        accessibilityState={{
+          busy: representativePending,
+          disabled: pending || representativePending,
+          selected: representative,
+        }}
+        disabled={pending || representativePending}
+        hitSlop={4}
+        onPress={onToggleRepresentative}
+        style={({ pressed }) => [
+          styles.pinButton,
+          pressed && styles.pressed,
+        ]}
+      >
+        {showRepresentativeProgress ? (
+          <ActivityIndicator color={COLORS.primary} size="small" />
+        ) : (
+          <HomePinIcon
+            color={representative ? COLORS.primary : COLORS.onSurfaceVariant}
+            filled={representative}
+            size={20}
+          />
+        )}
       </Pressable>
 
       <Pressable
@@ -504,8 +629,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 48,
     justifyContent: 'center',
-    marginLeft: 12,
     marginRight: 20,
+    width: 48,
+  },
+  pinButton: {
+    alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
+    marginLeft: 12,
     width: 48,
   },
   pressed: { opacity: 0.7 },
