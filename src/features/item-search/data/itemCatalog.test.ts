@@ -9,13 +9,19 @@ import rawItems from './assets/item_disposal_guides.json';
 import rawSynonyms from './assets/synonyms.json';
 import { loadItemCatalog, parseItemGuides, parseSynonyms } from './itemCatalog';
 
-describe('pinned Android v1.1.0 assets', () => {
-  test.each([
-    ['item_disposal_guides.json', '3b699c11b87f547ffdf0b17cc3bc81a52f7c739d25d89dc60a0789ea86898a4f'],
-    ['synonyms.json', '23cd3ffced5d352f62edae2d929c6bc77cbde483c36db41618d382bf19fb8cfd'],
-  ])('preserves source commit b3b7db1 bytes: %s', (filename, expectedHash) => {
-    const bytes = readFileSync(join(__dirname, 'assets', filename));
-    expect(createHash('sha256').update(bytes).digest('hex')).toBe(expectedHash);
+describe('Android v1.1.0 catalog with KAN-19 synonym corrections', () => {
+  test('preserves source commit b3b7db1 item guide bytes', () => {
+    const bytes = readFileSync(join(__dirname, 'assets', 'item_disposal_guides.json'));
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(
+      '3b699c11b87f547ffdf0b17cc3bc81a52f7c739d25d89dc60a0789ea86898a4f',
+    );
+  });
+
+  test('pins the five audited synonym corrections documented in assets/README.md', () => {
+    const bytes = readFileSync(join(__dirname, 'assets', 'synonyms.json'));
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(
+      '81c2199fa47b67db79934e4169572f8bf067b6da5c9a5c02b84af9bfebc1c026',
+    );
   });
 
   test('validates all 730 guides and 35 aliases without losing detail fields', () => {
@@ -26,7 +32,7 @@ describe('pinned Android v1.1.0 assets', () => {
     expect(Object.keys(parseSynonyms(rawSynonyms))).toHaveLength(35);
   });
 
-  test('reports exactly the known unresolved synonym targets from the pinned source', () => {
+  test('requires every synonym target to resolve directly', () => {
     // Targets must resolve directly: another synonym must not hide a broken reference.
     const directIndex = new ItemSearchIndex(parseItemGuides(rawItems), {});
     const unresolved = Object.fromEntries(
@@ -35,16 +41,20 @@ describe('pinned Android v1.1.0 assets', () => {
       ),
     );
 
-    // Keep v1.1.0 assets unchanged until the known defects are corrected in KAN-19:
-    // https://yeogi-beoryeo-rn.atlassian.net/browse/KAN-19
-    // Exact pairs make new defects, changed targets and stale exceptions fail CI.
-    expect(unresolved).toEqual({
-      투명병: '투명페트병',
-      쓰레기봉투: '종량제봉투',
-      음쓰: '음식물쓰레기',
-      안쓰는옷: '헌옷',
-      낡은옷: '헌옷',
-    });
+    expect(unresolved).toEqual({});
+  });
+
+  test.each([
+    ['투명병', '무색페트병', 'item-guide-0003'],
+    ['쓰레기봉투', '일반종량제폐기물', 'item-guide-0014'],
+    ['음쓰', '음식물류폐기물', 'item-guide-0013'],
+    ['안쓰는옷', '의류, 원단', 'item-guide-0230'],
+    ['낡은옷', '의류, 원단', 'item-guide-0230'],
+  ] as const)('resolves corrected alias %s to its audited guide', (alias, target, id) => {
+    expect(parseSynonyms(rawSynonyms)[alias]).toBe(target);
+    expect(loadItemCatalog().search(alias).map(guide => guide.id)).toEqual([id]);
+    expect(loadItemCatalog().search(` ${alias} `).map(guide => guide.id)).toEqual([id]);
+    expect(loadItemCatalog().getItemGuide(id)?.name).toBe(target);
   });
 
   test('reuses one catalog and resolves every stable ID to the full original detail', () => {
