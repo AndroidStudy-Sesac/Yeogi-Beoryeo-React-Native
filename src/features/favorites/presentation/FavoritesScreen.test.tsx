@@ -114,7 +114,7 @@ describe('<FavoritesScreen />', () => {
     );
 
     expect(screen.getByText('서울특별시 > 강남구 > 역삼1동')).toBeOnTheScreen();
-    expect(screen.getByText('역삼1동 · 2권역')).toBeOnTheScreen();
+    expect(screen.getByText('역삼1동, 2권역')).toBeOnTheScreen();
     expect(screen.queryByText(/수거유형/)).not.toBeOnTheScreen();
     expect(screen.queryByText(/지역 가이드 \d+개/)).not.toBeOnTheScreen();
   });
@@ -182,22 +182,22 @@ describe('<FavoritesScreen />', () => {
 
     expect(
       screen.getByLabelText(
-        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 1권역 지역 가이드 보기',
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동, 1권역 지역 가이드 보기',
       ),
     ).toBeOnTheScreen();
     expect(
       screen.getByLabelText(
-        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동, 2권역 지역 가이드 보기',
       ),
     ).toBeOnTheScreen();
     expect(
       screen.getByLabelText(
-        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 1권역 즐겨찾기 해제',
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동, 1권역 즐겨찾기 해제',
       ),
     ).toBeOnTheScreen();
     expect(
       screen.getByLabelText(
-        '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 즐겨찾기 해제',
+        '서울특별시 > 강남구 > 역삼1동, 역삼1동, 2권역 즐겨찾기 해제',
       ),
     ).toBeOnTheScreen();
   });

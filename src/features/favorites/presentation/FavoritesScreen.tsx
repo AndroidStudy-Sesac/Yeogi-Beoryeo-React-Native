@@ -1,7 +1,7 @@
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useNavigation, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -63,15 +63,17 @@ const EMPTY_CONTENT: Readonly<
   },
   REGIONAL_GUIDE: {
     title: '아직 즐겨찾기한 지역 가이드가 없어요',
-    description: '지역 가이드 즐겨찾기 연결 후 이곳에서 모아볼 수 있어요.',
+    description: '지역 가이드에서 별을 눌러 저장해 보세요.',
     actionLabel: '지역별 배출 가이드 찾아보기',
   },
 };
 
 export function FavoritesScreen({
   route,
+  renderItemContent,
 }: Readonly<{
   route?: RouteProp<FavoritesStackParamList, 'Favorites'>;
+  renderItemContent?: (header: ReactElement) => ReactNode;
 }> = {}) {
   const navigation =
     useNavigation<NativeStackNavigationProp<FavoritesStackParamList>>();
@@ -138,17 +140,20 @@ export function FavoritesScreen({
     });
   };
 
+  const header = <View style={{ gap: 16 }}>
+    <Text accessibilityRole="header" style={styles.title}>즐겨찾기</Text>
+    <FavoriteTabRow selectedCategory={category} onSelect={selectCategory} />
+  </View>;
+
+  if (category === 'ITEM' && renderItemContent) return renderItemContent(header);
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text accessibilityRole="header" style={styles.title}>
-          즐겨찾기
-        </Text>
-
-        <FavoriteTabRow selectedCategory={category} onSelect={selectCategory} />
+        {header}
 
         <FavoritesContent
           category={category}
@@ -205,18 +210,13 @@ function FavoriteTabRow({
             onPress={() => onSelect(item.id)}
             style={({ pressed }) => [
               styles.category,
-              selected && styles.selectedCategory,
               pressed && styles.pressed,
             ]}
           >
-            <Text
-              style={[
-                styles.categoryText,
-                selected && styles.selectedCategoryText,
-              ]}
-            >
+            <Text style={styles.categoryText}>
               {item.label}
             </Text>
+            {selected && <View style={styles.categoryIndicator} />}
           </Pressable>
         );
       })}
@@ -396,7 +396,7 @@ function FavoriteCard({
     favorite.identity.managementZoneName,
   ]
     .filter((value): value is string => Boolean(value?.trim()))
-    .join(' · ');
+    .join(', ');
   const accessibilityName = [title, subtitle].filter(Boolean).join(', ');
 
   return (
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.onSurface,
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'Pretendard-Bold',
     lineHeight: 32,
   },
   categories: {
@@ -537,17 +537,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
-  selectedCategory: {
-    borderBottomColor: COLORS.primary,
-    borderBottomWidth: 3,
+  categoryIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    width: 24,
+    height: 3,
+    backgroundColor: COLORS.primary,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
   },
   categoryText: {
-    color: COLORS.onSurfaceVariant,
+    color: COLORS.primary,
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
     lineHeight: 20,
   },
-  selectedCategoryText: { color: COLORS.primary },
   loading: {
     alignItems: 'center',
     flex: 1,
@@ -565,12 +569,13 @@ const styles = StyleSheet.create({
   statusTitle: {
     color: COLORS.onSurface,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Pretendard-SemiBold',
     lineHeight: 24,
   },
   statusDescription: {
     color: COLORS.onSurfaceVariant,
     fontSize: 14,
+    fontFamily: 'Pretendard-Regular',
     lineHeight: 20,
   },
   actionButton: {
@@ -585,7 +590,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: COLORS.onPrimary,
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Pretendard-Medium',
     lineHeight: 20,
   },
   favoriteList: { gap: 16 },
@@ -608,7 +613,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: COLORS.onSurface,
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Pretendard-Bold',
     lineHeight: 24,
   },
   metadataChip: {
@@ -622,7 +627,7 @@ const styles = StyleSheet.create({
   metadataText: {
     color: COLORS.onSecondaryContainer,
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'Pretendard-Medium',
     lineHeight: 20,
   },
   favoriteButton: {

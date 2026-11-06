@@ -24,6 +24,7 @@ import {
 } from './navigationTargets';
 import { loadItemCatalog } from '../../features/item-search/data/itemCatalog';
 import { itemSearchScreens } from './itemSearchScreens';
+import { ItemPreferencesProvider } from '../../features/item-search/presentation/ItemPreferencesContext';
 import {
   AppNavigator,
   type AppScreenRegistry,
@@ -180,21 +181,28 @@ async function renderNavigator(registry: AppScreenRegistry = screens) {
   };
   const result = await render(
     <SafeAreaProvider>
-      <RegionalGuideFavoritesProvider repository={favoriteRepository}>
-        <HomeRegionalGuideRepresentativeProvider
-          repository={representativeRepository}
-        >
-          <NavigationContainer ref={navigation}>
-            <AppNavigator screens={registry} />
-          </NavigationContainer>
-        </HomeRegionalGuideRepresentativeProvider>
-      </RegionalGuideFavoritesProvider>
+      <ItemPreferencesProvider>
+        <RegionalGuideFavoritesProvider repository={favoriteRepository}>
+          <HomeRegionalGuideRepresentativeProvider repository={representativeRepository}>
+            <NavigationContainer ref={navigation}>
+              <AppNavigator screens={registry} />
+            </NavigationContainer>
+          </HomeRegionalGuideRepresentativeProvider>
+        </RegionalGuideFavoritesProvider>
+      </ItemPreferencesProvider>
     </SafeAreaProvider>,
   );
   return { ...result, navigation };
 }
 
 describe('<AppNavigator />', () => {
+  it('대표 가이드에서 지도 이동 시 수거함 유형을 전달합니다', async () => {
+    const { getByRole, getByText, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
+    const target = createItemGuideDetailNavigationTarget('item-guide-0010');
+    await act(() => navigation.dispatch(CommonActions.navigate(target.name, target.params)));
+    await fireEvent.press(getByRole('button', { name: '근처 폐건전지 수거함 찾기' }));
+    await waitFor(() => expect(getByText('지도 종류 BATTERY_BIN')).toBeTruthy());
+  });
   it('실제 검색과 상세 화면을 등록하면 탭 이동 뒤에도 검색 맥락을 유지합니다', async () => {
     const { getByRole, getByLabelText, getByText } = await renderNavigator({ ...screens, ...itemSearchScreens });
     await fireEvent.changeText(getByLabelText('품목 검색 창'), '건전지');
@@ -210,14 +218,14 @@ describe('<AppNavigator />', () => {
   });
 
   it('저장 경로로 연 실제 상세 화면은 해당 품목을 표시하고 저장으로 복귀합니다', async () => {
-    const { getByRole, getByText, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
+    const { getByRole, navigation } = await renderNavigator({ ...screens, ...itemSearchScreens });
     const guide = loadItemCatalog().search('AA 건전지')[0];
     const target = createItemGuideDetailNavigationTarget(guide.id, 'FAVORITES');
     await act(() => navigation.dispatch(CommonActions.navigate(target.name, target.params)));
     await waitFor(() => expect(getByRole('header', { name: 'AA 건전지' })).toBeTruthy());
     expect(getByRole('button', { name: '저장 탭' })).toHaveProp('accessibilityState', { selected: true });
     await fireEvent.press(getByRole('button', { name: '뒤로가기' }));
-    await waitFor(() => expect(getByText('저장 테스트 화면')).toBeTruthy());
+    await waitFor(() => expect(getByRole('header', { name: '즐겨찾기' })).toBeTruthy());
     expect(navigation.getCurrentRoute()?.name).toBe('Favorites');
   });
 
@@ -251,6 +259,19 @@ describe('<AppNavigator />', () => {
     await fireEvent.press(getByRole('button', { name: '홈 탭' }));
 
     await waitFor(() => expect(getByText('검색 상태 1')).toBeTruthy());
+  });
+
+  it('탭 전환 시 원본 선택 배경과 글자색을 현재 화면에 함께 적용합니다', async () => {
+    const { getByRole, getByTestId, getByText } = await renderNavigator();
+    expect(getByTestId('bottom-tab-indicator-HomeTab')).toHaveStyle({ backgroundColor: '#E8F5E0' });
+    expect(getByText('홈')).toHaveStyle({ color: '#64B433', fontFamily: 'Pretendard-Medium' });
+
+    await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+
+    expect(getByTestId('bottom-tab-indicator-HomeTab')).toHaveStyle({ backgroundColor: 'transparent' });
+    expect(getByText('홈')).toHaveStyle({ color: '#424940' });
+    expect(getByTestId('bottom-tab-indicator-FavoritesTab')).toHaveStyle({ backgroundColor: '#E8F5E0' });
+    expect(getByText('저장')).toHaveStyle({ color: '#64B433' });
   });
 
   it('선택된 탭을 다시 누르면 해당 stack의 첫 화면으로 돌아갑니다', async () => {
@@ -304,7 +325,7 @@ describe('<AppNavigator />', () => {
   ] as const)(
     '저장 내부 지도에서 %s을 선택하면 해당 탭의 첫 화면을 초기화합니다',
     async (tabLabel, rootScreen, rootText) => {
-      const { getByRole, getByText, navigation } = await renderNavigator();
+      const { getByRole, getByText, getByTestId, navigation } = await renderNavigator();
       await fireEvent.press(getByRole('button', { name: '지도 탭' }));
       await fireEvent.press(getByRole('button', { name: '지도 상태 변경' }));
       expect(getByText('지도 상태 1')).toBeTruthy();
@@ -317,6 +338,8 @@ describe('<AppNavigator />', () => {
       expect(
         getByRole('button', { name: '저장 탭' }).props.accessibilityState,
       ).toMatchObject({ selected: false });
+      expect(getByTestId('bottom-tab-indicator-MapTab')).toHaveStyle({ backgroundColor: '#E8F5E0' });
+      expect(getByTestId('bottom-tab-indicator-FavoritesTab')).toHaveStyle({ backgroundColor: 'transparent' });
 
       await fireEvent.press(getByRole('button', { name: tabLabel }));
 

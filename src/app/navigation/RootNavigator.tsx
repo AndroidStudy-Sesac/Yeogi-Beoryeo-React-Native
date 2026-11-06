@@ -16,7 +16,6 @@ import {
   View,
 } from 'react-native';
 
-import { FavoritesScreen } from '../../features/favorites/presentation/FavoritesScreen';
 import { RegionalGuideScreen } from '../../features/regional-guide/presentation/RegionalGuideScreen';
 import { RegionalGuideDetailScreen } from '../../features/regional-guide/presentation/RegionalGuideDetailScreen';
 import { useRegionalGuideFavorites } from '../../features/regional-guide/presentation/RegionalGuideFavoritesContext';
@@ -263,11 +262,8 @@ function regionalGuideDetailSource(
 }
 
 const appScreens = {
-  Favorites: FavoritesScreen,
   ...itemSearchScreens,
-  ItemUsefulGuide: BootstrapScreen,
   Map: BootstrapScreen,
-  QuickCategorySettings: BootstrapScreen,
   RegionalGuide: RegionalGuideRouteScreen,
   RegionalGuideDetail: RegionalGuideDetailRouteScreen,
   Settings: BootstrapScreen,

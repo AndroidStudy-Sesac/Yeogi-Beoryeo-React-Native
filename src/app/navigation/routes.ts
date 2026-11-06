@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { ItemSearchSnapshot } from '../../features/item-search/presentation/useItemSearch';
+import type { ItemHomeSnapshot } from '../../features/item-search/presentation/homeLayout';
 import type { RegionSelection } from '../../features/regional-guide/domain/Region';
 
 export const BOTTOM_TAB_ROUTES = {
@@ -105,6 +106,7 @@ export type RegionalGuideDetailRouteParams = {
 export type ItemSearchRouteParams = {
   initialQuery?: string;
   savedSearchState?: ItemSearchSnapshot;
+  savedHomeState?: ItemHomeSnapshot;
 };
 
 export type QuickCategorySettingsRouteParams = {

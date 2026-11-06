@@ -11,6 +11,7 @@ import {
 } from '../features/regional-guide/data/homeRegionalGuideRepresentativeRepository';
 import { sharedRegionalGuideApiClient } from '../features/regional-guide/data/regionalGuideApi';
 import { createRegionalGuideFavorite } from '../features/regional-guide/domain/regionalGuideFavorite';
+import { ITEM_PREFERENCES_KEY } from '../features/item-search/data/itemPreferences';
 import App from './App';
 
 jest.useFakeTimers();
@@ -21,12 +22,31 @@ afterEach(async () => {
 });
 
 describe('<App />', () => {
-  beforeEach(async () => {
+  beforeEach(async () => { await AsyncStorage.clear(); });
+  it('홈의 대표 가이드를 저장하고 저장 탭에서 상세를 열었다 돌아옵니다', async () => {
     await AsyncStorage.clear();
+    const view = await render(<App />);
+    await fireEvent.press(view.getByRole('button', { name: '종이 배출 방법 보기' }));
+    await waitFor(() => expect(view.getByRole('header', { name: '종이' })).toBeTruthy());
+    await fireEvent.press(view.getByRole('button', { name: '즐겨찾기 추가' }));
+    await waitFor(() => expect(view.getByRole('button', { name: '즐겨찾기 해제' })).toBeTruthy());
+    await fireEvent.press(view.getByRole('button', { name: '저장 탭' }));
+    await fireEvent.press(view.getByRole('button', { name: '종이 상세 보기' }));
+    await waitFor(() => expect(view.getByRole('header', { name: '종이' })).toBeTruthy());
+    await fireEvent.press(view.getByRole('button', { name: '뒤로가기' }));
+    await waitFor(() => expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+    await view.unmount();
+    const reopened = await render(<App />);
+    await fireEvent.press(reopened.getByRole('button', { name: '저장 탭' }));
+    await waitFor(() => expect(reopened.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+    await fireEvent.press(reopened.getByRole('button', { name: '종이 즐겨찾기 해제' }));
+    await waitFor(() => expect(reopened.getByLabelText('아직 즐겨찾기한 품목이 없어요')).toBeTruthy());
+    await fireEvent.press(reopened.getByRole('button', { name: '품목 검색' }));
+    await waitFor(() => expect(reopened.getByLabelText('품목 검색 창')).toBeTruthy());
   });
 
   it('Android 복원 세션에서 제출 결과와 다른 편집 입력을 함께 복원합니다', async () => {
-    jest.mocked(AsyncStorage.getItem).mockResolvedValueOnce(JSON.stringify({
+    await AsyncStorage.setItem('item-search-session-v1', JSON.stringify({
       sessionId: 'restored-task', search: { query: '종이', submittedQuery: '건전지',
         handledInitialQuery: null, resultVersion: 1, scrollOffset: 0 },
     }));
@@ -39,6 +59,56 @@ describe('<App />', () => {
     const { getByLabelText, getByRole } = await render(<App />);
     expect(getByLabelText('품목 검색 창')).toBeTruthy();
     expect(getByRole('button', { name: '검색' })).toBeDisabled();
+    expect(getByRole('header', { name: '안내 사항' })).toBeTruthy();
+    expect(getByRole('button', { name: '종이 배출 방법 보기' })).toBeTruthy();
+    await waitFor(() => expect(getByLabelText('홈 지역 가이드 Favorite 없음')).toBeTruthy());
+  });
+
+  it('홈에서 지역 저장 목록을 열어도 품목 목록 전환과 대표 지역 고정 및 복원이 유지됩니다', async () => {
+    const selection = {
+      sido: { id: 'sido:11', level: 'sido' as const, name: '서울특별시' },
+      sigungu: { id: 'sigungu:11680', level: 'sigungu' as const, name: '강남구', parentId: 'sido:11' },
+    };
+    const guide = {
+      sidoName: '서울특별시',
+      sigunguName: '강남구',
+      targetRegionName: '강남구',
+      schedules: [{ wasteType: 'general' as const, disposalDays: '월, 수, 금' }],
+    };
+    const favorite = createRegionalGuideFavorite(selection, guide, '2026-11-05T00:00:00.000Z');
+    await AsyncStorage.multiSet([
+      [REGIONAL_GUIDE_FAVORITES_STORAGE_KEY, JSON.stringify({
+        version: REGIONAL_GUIDE_FAVORITES_SCHEMA_VERSION, favorites: [favorite],
+      })],
+      [ITEM_PREFERENCES_KEY, JSON.stringify({
+        version: 1, categories: [], favorites: [{ id: 'item-guide-0001', savedAt: 1 }],
+      })],
+    ]);
+    const fetchSpy = jest.spyOn(sharedRegionalGuideApiClient, 'fetchRegionalDisposalGuides')
+      .mockResolvedValue({ status: 'success', guides: [guide] });
+    try {
+      const view = await render(<App />);
+      await fireEvent.press(await waitFor(() => view.getByLabelText('홈 대표 지역 없음')));
+      expect(view.getByRole('tab', { name: '지역 즐겨찾기 카테고리' }))
+        .toHaveProp('accessibilityState', { selected: true });
+      await fireEvent.press(view.getByRole('tab', { name: '품목 즐겨찾기 카테고리' }));
+      expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy();
+      await fireEvent.press(view.getByRole('tab', { name: '지역 즐겨찾기 카테고리' }));
+      await fireEvent.press(view.getByRole('button', { name: /홈 지역 가이드로 고정$/ }));
+      await waitFor(() => expect(view.getByRole('button', { name: /홈 지역 가이드 고정 해제$/ })).toBeTruthy());
+      await fireEvent.press(view.getByRole('button', { name: '홈 탭' }));
+      await waitFor(() => expect(view.getByLabelText(/강남구 지역 가이드 상세 보기$/)).toBeTruthy());
+      expect(view.getByRole('button', { name: '종이 배출 방법 보기' })).toBeTruthy();
+      await view.unmount();
+
+      const restored = await render(<App />);
+      await waitFor(() => expect(restored.getByLabelText(/강남구 지역 가이드 상세 보기$/)).toBeTruthy());
+      await fireEvent.press(restored.getByRole('button', { name: '저장 탭' }));
+      expect(restored.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy();
+      await restored.unmount();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('실제 품목을 검색해 상세를 열고 돌아오면 편집 입력과 결과를 유지합니다', async () => {
@@ -108,7 +178,6 @@ describe('<App />', () => {
     await waitFor(() => expect(getByText('지역별 배출 가이드')).toBeTruthy());
     expect(getByText('서울특별시 > 강남구')).toBeTruthy();
   });
-
   it('저장 목록에서 연 지역 상세의 뒤로가기는 저장 목록으로 복귀합니다', async () => {
     const favorite = createRegionalGuideFavorite(
       {
@@ -140,17 +209,19 @@ describe('<App />', () => {
         favorites: [favorite],
       }),
     );
+    await AsyncStorage.setItem(ITEM_PREFERENCES_KEY, JSON.stringify({
+      version: 1, categories: [], favorites: [{ id: 'item-guide-0001', savedAt: 1 }],
+    }));
     const { getByLabelText, getByRole } = await render(<App />);
 
     await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+    await waitFor(() => expect(getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
     await fireEvent.press(
       await waitFor(() => getByLabelText('지역 즐겨찾기 카테고리')),
     );
     await fireEvent.press(
       await waitFor(() =>
-        getByLabelText(
-          '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
-        ),
+        getByLabelText('서울특별시 > 강남구 > 역삼1동, 역삼1동, 2권역 지역 가이드 보기'),
       ),
     );
     await waitFor(() =>
@@ -163,15 +234,39 @@ describe('<App />', () => {
 
     await waitFor(() =>
       expect(
-        getByLabelText(
-          '서울특별시 > 강남구 > 역삼1동, 역삼1동 · 2권역 지역 가이드 보기',
-        ),
+        getByLabelText('서울특별시 > 강남구 > 역삼1동, 역삼1동, 2권역 지역 가이드 보기'),
       ).toBeTruthy(),
     );
     expect(
       getByRole('button', { name: '저장 탭' }).props.accessibilityState,
     ).toMatchObject({ selected: true });
+    await fireEvent.press(getByLabelText('품목 즐겨찾기 카테고리'));
+    await fireEvent.press(getByRole('button', { name: '종이 즐겨찾기 해제' }));
+    await waitFor(() => expect(getByLabelText('아직 즐겨찾기한 품목이 없어요')).toBeTruthy());
+    const regionalSaved = await AsyncStorage.getItem(REGIONAL_GUIDE_FAVORITES_STORAGE_KEY);
+    expect(regionalSaved && JSON.parse(regionalSaved).favorites).toEqual([favorite]);
     await act(async () => jest.runOnlyPendingTimers());
+  });
+
+  it('지역 저장 데이터 복원 실패가 품목 저장 목록을 막지 않습니다', async () => {
+    await AsyncStorage.setItem(ITEM_PREFERENCES_KEY, JSON.stringify({
+      version: 1, categories: [], favorites: [{ id: 'item-guide-0001', savedAt: 1 }],
+    }));
+    const read = jest.mocked(AsyncStorage.getItem).getMockImplementation()!;
+    jest.mocked(AsyncStorage.getItem).mockImplementation(key =>
+      key === REGIONAL_GUIDE_FAVORITES_STORAGE_KEY ? Promise.reject(new Error('read failure')) : read(key));
+    try {
+      const view = await render(<App />);
+      await fireEvent.press(view.getByRole('button', { name: '저장 탭' }));
+      await waitFor(() => expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy());
+      await fireEvent.press(view.getByLabelText('지역 즐겨찾기 카테고리'));
+      expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
+      await fireEvent.press(view.getByLabelText('품목 즐겨찾기 카테고리'));
+      expect(view.getByRole('button', { name: '종이 상세 보기' })).toBeTruthy();
+      await view.unmount();
+    } finally {
+      jest.mocked(AsyncStorage.getItem).mockImplementation(read);
+    }
   });
 
   it('홈 요약에서 상세를 열고 복귀하면 기존 정상 요약을 유지합니다', async () => {

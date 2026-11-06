@@ -13,8 +13,10 @@ import { useItemSearch, type ItemSearchSnapshot, type SearchItems } from './useI
 
 export function ItemSearchScreen({
   initialQuery, savedState, onSnapshot, onGuideSelected, focused = true,
-  homeSummaryCard, searchItems,
+  homeSummaryCard, searchItems, renderHome, favoriteIds,
 }: {
+  renderHome?: (searchField: ReactNode, homeSummaryCard: ReactNode) => ReactNode;
+  favoriteIds?: ReadonlySet<string>;
   initialQuery?: string;
   savedState?: ItemSearchSnapshot;
   onSnapshot?: (snapshot: ItemSearchSnapshot) => void;
@@ -83,14 +85,7 @@ export function ItemSearchScreen({
     if (positionedVersion.current === search.resultVersion) search.rememberScroll(offset);
   }
 
-  return <SafeAreaView edges={['top', 'left', 'right', 'bottom']}
-    style={[styles.screen, { backgroundColor: colors.background }]}>
-    <ItemTopBar title={hasSearched ? '품목 검색' : '여기 버려'} onBack={hasSearched ? () => clearSearch() : undefined} />
-    <View style={{ paddingHorizontal: horizontalPadding,
-      paddingTop: 8 + (hasSearched && !hasResults ? screenSpace : 0),
-      gap: hasResults ? 8 : screenSpace, paddingBottom: hasSummary ? 16 : screenSpace }}>
-      {!hasSearched ? homeSummaryCard : null}
-      <View style={[styles.searchField, { backgroundColor: colors.background,
+  const searchField = <View style={[styles.searchField, { backgroundColor: colors.background,
         borderColor: inputFocused ? colors.primary : colors.fieldOutline, borderWidth,
         paddingLeft: 16 - borderWidth }]}>
         <Text pointerEvents="none" accessible={false}
@@ -107,7 +102,17 @@ export function ItemSearchScreen({
           <ItemIcon name="action_search" size={width <= 384 ? 24 : 20}
             color={search.query.trim() || inputFocused ? colors.primary : colors.muted} />
         </Pressable>
-      </View>
+      </View>;
+
+  return <SafeAreaView edges={['top', 'left', 'right']}
+    style={[styles.screen, { backgroundColor: colors.background }]}>
+    {!hasSearched && renderHome ? renderHome(searchField, homeSummaryCard) : <>
+    <ItemTopBar title={hasSearched ? '품목 검색' : '여기 버려'} onBack={hasSearched ? () => clearSearch() : undefined} />
+    <View style={{ paddingHorizontal: horizontalPadding,
+      paddingTop: 8 + (hasSearched && !hasResults ? screenSpace : 0),
+      gap: hasResults ? 8 : screenSpace, paddingBottom: hasSummary ? 16 : screenSpace }}>
+      {!hasSearched ? homeSummaryCard : null}
+      {searchField}
       {(search.status === 'success' || search.status === 'empty') &&
         <Text accessibilityRole="header" accessibilityLiveRegion="polite"
           style={[styles.resultSummary, { color: colors.text }]}>
@@ -131,7 +136,7 @@ export function ItemSearchScreen({
         onLayout={restorePosition}
         onContentSizeChange={restorePosition}
         renderItem={({ item: guide }) => <Pressable accessibilityRole="button"
-          accessibilityLabel={itemReadableText(`${guide.name}, ${getItemDisplay(guide).categoryLabel}, 상세 보기`)}
+          accessibilityLabel={itemReadableText(`${guide.name}, ${getItemDisplay(guide).categoryLabel}, ${favoriteIds?.has(guide.id) ? '즐겨찾기됨, ' : ''}상세 보기`)}
           onPress={() => { Keyboard.dismiss(); onGuideSelected(guide.id); }}
           style={({ pressed }) => [styles.resultCard, { borderColor: colors.outline, opacity: pressed ? 0.65 : 1 }]}>
           <View style={styles.cardContent}>
@@ -141,6 +146,7 @@ export function ItemSearchScreen({
               {getItemDisplay(guide).summary!}
             </ItemText>}
           </View>
+          {favoriteIds?.has(guide.id) && <ItemIcon name="favorite_filled" color={colors.tertiary} size={20} />}
           <ItemIcon name="action_chevron_right" size={20} color={colors.outline} />
         </Pressable>} />
       {search.scrollOffset > 0 && <Pressable accessibilityRole="button" accessibilityLabel="맨 위로 이동"
@@ -149,6 +155,7 @@ export function ItemSearchScreen({
         <View style={styles.upIcon}><ItemIcon name="action_chevron_right" color={colors.onPrimaryContainer} /></View>
       </Pressable>}
     </View>}
+    </>}
   </SafeAreaView>;
 }
 

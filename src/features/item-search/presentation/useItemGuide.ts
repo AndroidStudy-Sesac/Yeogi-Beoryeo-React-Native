@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { loadItemCatalog } from '../data/itemCatalog';
+import { loadItemGuide } from '../data/itemCatalog';
 import type { ItemGuide } from '../domain/itemGuide';
 
 export type LoadItemGuide = (
@@ -13,7 +13,7 @@ type DetailState =
   | { status: 'success'; guide: ItemGuide };
 
 const loadBundledGuide: LoadItemGuide = async id =>
-  loadItemCatalog().getItemGuide(id);
+  loadItemGuide(id);
 
 export function useItemGuide(guideId: string, loadGuide = loadBundledGuide) {
   const [state, setState] = useState<DetailState>({ status: 'loading', guide: null });
