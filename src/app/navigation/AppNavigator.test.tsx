@@ -261,6 +261,19 @@ describe('<AppNavigator />', () => {
     await waitFor(() => expect(getByText('검색 상태 1')).toBeTruthy());
   });
 
+  it('탭 전환 시 원본 선택 배경과 글자색을 현재 화면에 함께 적용합니다', async () => {
+    const { getByRole, getByTestId, getByText } = await renderNavigator();
+    expect(getByTestId('bottom-tab-indicator-HomeTab')).toHaveStyle({ backgroundColor: '#E8F5E0' });
+    expect(getByText('홈')).toHaveStyle({ color: '#64B433', fontFamily: 'Pretendard-Medium' });
+
+    await fireEvent.press(getByRole('button', { name: '저장 탭' }));
+
+    expect(getByTestId('bottom-tab-indicator-HomeTab')).toHaveStyle({ backgroundColor: 'transparent' });
+    expect(getByText('홈')).toHaveStyle({ color: '#424940' });
+    expect(getByTestId('bottom-tab-indicator-FavoritesTab')).toHaveStyle({ backgroundColor: '#E8F5E0' });
+    expect(getByText('저장')).toHaveStyle({ color: '#64B433' });
+  });
+
   it('선택된 탭을 다시 누르면 해당 stack의 첫 화면으로 돌아갑니다', async () => {
     const { getByRole, getByText, queryByText } = await renderNavigator();
 
@@ -312,7 +325,7 @@ describe('<AppNavigator />', () => {
   ] as const)(
     '저장 내부 지도에서 %s을 선택하면 해당 탭의 첫 화면을 초기화합니다',
     async (tabLabel, rootScreen, rootText) => {
-      const { getByRole, getByText, navigation } = await renderNavigator();
+      const { getByRole, getByText, getByTestId, navigation } = await renderNavigator();
       await fireEvent.press(getByRole('button', { name: '지도 탭' }));
       await fireEvent.press(getByRole('button', { name: '지도 상태 변경' }));
       expect(getByText('지도 상태 1')).toBeTruthy();
@@ -325,6 +338,8 @@ describe('<AppNavigator />', () => {
       expect(
         getByRole('button', { name: '저장 탭' }).props.accessibilityState,
       ).toMatchObject({ selected: false });
+      expect(getByTestId('bottom-tab-indicator-MapTab')).toHaveStyle({ backgroundColor: '#E8F5E0' });
+      expect(getByTestId('bottom-tab-indicator-FavoritesTab')).toHaveStyle({ backgroundColor: 'transparent' });
 
       await fireEvent.press(getByRole('button', { name: tabLabel }));
 
