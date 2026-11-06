@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 
 import type { ItemGuide } from '../domain/itemGuide';
 import { ItemText } from './ItemComponents';
@@ -78,16 +79,27 @@ describe('품목 화면', () => {
 });
 
 describe('원본 품목 표시 규칙', () => {
-  it.each([
-    '품목 검색, 수거 장소, 지역별 배출 정보를 한 곳에서 확인하세요.',
-    '헷갈리는 물건은 이름으로 찾아보세요.',
-    '종이, 종이팩! (종이컵) 종이?',
-  ])('문장부호 앞에 강제 줄바꿈 지점을 넣지 않습니다: %s', async (text) => {
-    const view = await render(<ItemText>{text}</ItemText>);
-    const displayed = view.getByLabelText(text).props.children as string;
-    expect(displayed.replaceAll('\u200B', '')).toBe(text);
-    expect(displayed).toContain('\u200B');
-    expect(displayed).not.toMatch(/\u200B(?=[.,!?)]|\s|$)/u);
+  describe.each(['ios', 'android'] as const)('%s 줄바꿈', (platform) => {
+    beforeEach(() => { jest.replaceProperty(Platform, 'OS', platform); });
+    afterEach(() => { jest.restoreAllMocks(); });
+
+    it.each([
+      '품목 검색, 수거 장소, 지역별 배출 정보를 한 곳에서 확인하세요.',
+      '헷갈리는 물건은 이름으로 찾아보세요.',
+      '종이, 종이팩! (종이컵) 종이?',
+    ])('문장부호를 보존하고 iOS에서는 한글 단어를 묶습니다: %s', async (text) => {
+      const view = await render(<ItemText>{text}</ItemText>);
+      const label = view.getByLabelText(text);
+      const displayed = label.props.children as string;
+      expect(displayed.replaceAll('\u200B', '')).toBe(text);
+      expect(displayed).not.toMatch(/\u200B(?=[.,!?)]|\s|$)/u);
+      if (platform === 'ios') {
+        expect(displayed).toBe(text);
+        expect(label).toHaveProp('lineBreakStrategyIOS', 'hangul-word');
+      } else {
+        expect(displayed).toContain('\u200B');
+      }
+    });
   });
 
   it.each<[number, boolean]>([[1.15, false], [1.2999999523162842, true], [1.5, true]])(

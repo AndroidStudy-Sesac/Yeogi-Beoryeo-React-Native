@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, type TextProps, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, type TextProps, useWindowDimensions, View } from 'react-native';
 import Svg, { Path, type PathProps } from 'react-native-svg';
 
 import type { ItemGuide } from '../domain/itemGuide';
@@ -8,8 +8,9 @@ import { getItemDisplay, itemReadableText, itemText } from './itemDisplay';
 import { itemFonts, useItemColors, usesLargeItemTypography } from './itemTheme';
 
 export function ItemText({ children, ...props }: Omit<TextProps, 'children'> & { children: string }) {
-  return <Text accessible {...props} accessibilityLabel={itemReadableText(children)}>
-    {itemText(children).replace(/([가-힣])(?=[가-힣])/g, '$1\u200B')}
+  const text = itemText(children);
+  return <Text accessible lineBreakStrategyIOS="hangul-word" {...props} accessibilityLabel={itemReadableText(children)}>
+    {Platform.OS === 'ios' ? text : text.replace(/([가-힣])(?=[가-힣])/g, '$1\u200B')}
   </Text>;
 }
 
