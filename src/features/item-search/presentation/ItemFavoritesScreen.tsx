@@ -19,7 +19,7 @@ export function ItemFavoritesScreen({ onGuideSelected, onSearch, header }: {
     const guide = loadItemGuide(favorite.id);
     return guide ? [guide] : [];
   });
-  return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
     <FlatList data={tab === '품목' && status === 'ready' ? guides : []} keyExtractor={guide => guide.id}
       contentContainerStyle={styles.list} ListHeaderComponent={header ?? <View style={{ gap: 16 }}>
       <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>즐겨찾기</Text>

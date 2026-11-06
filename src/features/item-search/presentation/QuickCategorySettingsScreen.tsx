@@ -26,7 +26,7 @@ export function QuickCategorySettingsScreen({ maximum, onBack, focused = true }:
     const listener = BackHandler.addEventListener('hardwareBackPress', () => { back(); return true; });
     return () => listener.remove();
   }, [back, focused]);
-  return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
     <ItemTopBar title="분리배출 분류 편집" onBack={back} />
     <FlatList data={filterHomeCategories(query)} keyExtractor={category => category.id}
       keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list}

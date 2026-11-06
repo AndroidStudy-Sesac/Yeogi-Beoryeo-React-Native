@@ -104,7 +104,7 @@ export function ItemSearchScreen({
         </Pressable>
       </View>;
 
-  return <SafeAreaView edges={['top', 'left', 'right', 'bottom']}
+  return <SafeAreaView edges={['top', 'left', 'right']}
     style={[styles.screen, { backgroundColor: colors.background }]}>
     {!hasSearched && renderHome ? renderHome(searchField, homeSummaryCard) : <>
     <ItemTopBar title={hasSearched ? '품목 검색' : '여기 버려'} onBack={hasSearched ? () => clearSearch() : undefined} />

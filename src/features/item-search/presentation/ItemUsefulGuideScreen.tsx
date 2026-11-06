@@ -15,7 +15,7 @@ export function ItemUsefulGuideScreen({ type, onBack, onAction }: {
   async function open(url: string) {
     try { await Linking.openURL(url); setLinkError(false); } catch { setLinkError(true); }
   }
-  return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
     <ItemTopBar title={guide.title} onBack={onBack} />
     <ScrollView contentContainerStyle={styles.content}>
       <ItemText style={[styles.body, { color: colors.muted }]}>{guide.description}</ItemText>

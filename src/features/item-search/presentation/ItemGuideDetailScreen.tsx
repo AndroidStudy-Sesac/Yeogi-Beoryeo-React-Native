@@ -53,7 +53,7 @@ export function ItemGuideDetailScreen({ guideId, onBack, loadGuide, savedScrollO
     if (positionedGuide.current === guideId && Number.isFinite(offset) && offset >= 0) onScrollOffsetChange?.(offset);
   }
 
-  return <SafeAreaView edges={['top', 'left', 'right', 'bottom']}
+  return <SafeAreaView edges={['top', 'left', 'right']}
     style={[styles.screen, { backgroundColor: colors.background }]}>
     <ItemTopBar onBack={onBack}>{detail.guide && favoriteControl}</ItemTopBar>
     {feedback}
