@@ -60,7 +60,7 @@ export function HomeContent({ searchField, homeSummaryCard, onGuideSelected, onU
     return () => cancelAnimationFrame(frame);
   }, [focused, expanded]);
 
-  return <ScrollView ref={scroll} keyboardShouldPersistTaps="handled"
+  return <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
     onLayout={event => setViewport(event.nativeEvent.layout.height)}
     onContentSizeChange={() => {
       if (!positioned.current && viewport > 0) scroll.current?.scrollTo({ y: offset.current, animated: false });
