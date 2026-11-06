@@ -9,7 +9,7 @@ import { itemFonts, useItemColors, usesLargeItemTypography } from './itemTheme';
 
 export function ItemText({ children, ...props }: Omit<TextProps, 'children'> & { children: string }) {
   return <Text accessible {...props} accessibilityLabel={itemReadableText(children)}>
-    {itemText(children).replace(/([가-힣])/g, '$1\u200B')}
+    {itemText(children).replace(/([가-힣])(?=[가-힣])/g, '$1\u200B')}
   </Text>;
 }
 

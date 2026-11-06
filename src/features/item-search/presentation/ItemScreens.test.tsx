@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import type { ItemGuide } from '../domain/itemGuide';
+import { ItemText } from './ItemComponents';
 import { ItemGuideDetailScreen } from './ItemGuideDetailScreen';
 import { ItemSearchScreen } from './ItemSearchScreen';
 import { getItemCategory, getItemDisplay, itemReadableText } from './itemDisplay';
@@ -77,6 +78,18 @@ describe('품목 화면', () => {
 });
 
 describe('원본 품목 표시 규칙', () => {
+  it.each([
+    '품목 검색, 수거 장소, 지역별 배출 정보를 한 곳에서 확인하세요.',
+    '헷갈리는 물건은 이름으로 찾아보세요.',
+    '종이, 종이팩! (종이컵) 종이?',
+  ])('문장부호 앞에 강제 줄바꿈 지점을 넣지 않습니다: %s', async (text) => {
+    const view = await render(<ItemText>{text}</ItemText>);
+    const displayed = view.getByLabelText(text).props.children as string;
+    expect(displayed.replaceAll('\u200B', '')).toBe(text);
+    expect(displayed).toContain('\u200B');
+    expect(displayed).not.toMatch(/\u200B(?=[.,!?)]|\s|$)/u);
+  });
+
   it.each<[number, boolean]>([[1.15, false], [1.2999999523162842, true], [1.5, true]])(
     'Android에서 전달한 글자 배율 %s에 원본의 큰 글자 분기를 적용합니다', (scale, expected) => {
       expect(usesLargeItemTypography(scale)).toBe(expected);
