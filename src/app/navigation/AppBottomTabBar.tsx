@@ -1,14 +1,13 @@
 import { BottomTabBar, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
-import { Platform, StyleSheet, Text, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useColorScheme, useWindowDimensions, View } from 'react-native';
 
 import { getScreenSelectedBottomTab } from './navigationPolicy';
 
 export function AppBottomTabBar(props: BottomTabBarProps) {
   const colors = useColorScheme() === 'dark' ? DARK_COLORS : LIGHT_COLORS;
   const { fontScale } = useWindowDimensions();
-  const isIOS = Platform.OS === 'ios';
-  const height = Math.max(isIOS ? 49 : 80, (isIOS ? 30 : 40) + 16 * fontScale) + props.insets.bottom;
+  const height = Math.max(80, 40 + 16 * fontScale) + props.insets.bottom;
   const selectedTab = getScreenSelectedBottomTab(props.state);
   const descriptors = Object.fromEntries(
     Object.entries(props.descriptors).map(([key, descriptor], index, entries) => {
@@ -30,12 +29,11 @@ export function AppBottomTabBar(props: BottomTabBarProps) {
               <PlatformPressable
                 {...buttonProps}
                 aria-selected={selected}
-                style={[buttonProps.style, styles.button, isIOS && styles.iosButton]}
+                style={[buttonProps.style, styles.button]}
               >
                 <View
                   style={[
                     styles.indicator,
-                    isIOS && styles.iosIndicator,
                     { backgroundColor: selected ? colors.indicator : 'transparent' },
                   ]}
                   testID={`bottom-tab-indicator-${descriptor.route.name}`}
@@ -95,8 +93,6 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
   },
-  iosButton: { paddingBottom: 0, gap: 2 },
-  iosIndicator: { height: 28, borderRadius: 14 },
   label: {
     fontFamily: 'Pretendard-Medium',
     fontSize: 12,
